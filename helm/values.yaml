@@ -1,0 +1,100 @@
+# For a single endpoint app
+
+nameOverride: ""
+fullnameOverride: ""
+
+#Platform options
+ezua:
+  oidc:
+    client_id: "${OIDC_CLIENT_ID}"
+    client_secret: "${OIDC_CLIENT_SECRET}"
+    domain: "${OIDC_DOMAIN}"
+
+  domainName: "${DOMAIN_NAME}"
+
+  virtualService:
+    endpoint: "dash.${DOMAIN_NAME}"
+    istioGateway: "istio-system/ezaf-gateway"
+
+  authorizationPolicy:
+    namespace: "istio-system"
+    providerName: "oauth2-proxy"
+    matchLabels:
+      istio: "ingressgateway"
+
+image:
+  repository: "python"
+  tag: "3.11"
+
+imagePullPolicy: IfNotPresent
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 5000
+  targetPort: 5000
+  name: http
+
+appFiles:
+  - app.sh
+  - app.py
+  - deployments.py
+  - endpoints.py
+  - kube.py
+  - monitor.py
+  - requirements.txt
+
+env:
+  - name: OIDC_CLIENT_SECRET
+    value: "${OIDC_CLIENT_SECRET}"
+  - name: OIDC_CLIENT_ID
+    value: "${OIDC_CLIENT_ID}"
+  - name: domain
+    value: "${DOMAIN_NAME}"
+
+airgap:
+  registry:
+    url: "" # ${AIRGAP_REGISTRY}
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations:
+  hpe-ezua/add-auth-token: "true"
+
+podLabels: {}
+
+podSecurityContext: {}
+# # fsGroup: 2000
+
+securityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+
+ingress:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 2Gi
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

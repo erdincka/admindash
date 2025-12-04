@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dashboard-dev
+  labels:
+    app: dashboard-v2
+    environment: development

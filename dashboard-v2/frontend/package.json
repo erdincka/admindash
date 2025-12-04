@@ -1,0 +1,36 @@
+{
+  "name": "dashboard-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^16.0.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "grommet": "^2.51.0",
+    "grommet-icons": "^4.14.0",
+    "grommet-theme-hpe": "^8.0.0",
+    "styled-components": "^6.1.19",
+    "@tanstack/react-query": "^5.90.11",
+    "zustand": "^5.0.9",
+    "socket.io-client": "^4.8.1",
+    "react-hook-form": "^7.67.0",
+    "zod": "^4.1.13",
+    "@hookform/resolvers": "^5.2.2",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.0.6"
+  }
+}

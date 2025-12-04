@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "admindash.fullname" . }}-files
+  labels:
+    {{- include "admindash.labels" . | nindent 4 }}
+data:
+{{- range .Values.appFiles }}
+  {{ . }}: |-
+{{ $.Files.Get (printf "dashboard/%s" .) | indent 4 }}
+{{- end }}
