@@ -20,6 +20,16 @@ export interface DeploymentCreate {
     replicas: number
     expose_service: boolean
     service_type: 'ClusterIP' | 'NodePort' | 'LoadBalancer'
+
+    // Advanced Options
+    is_public?: boolean
+    run_as_root?: boolean
+    is_sso?: boolean
+    is_user_volume?: boolean
+    is_shared_volume?: boolean
+    is_gpu?: boolean
+    user_namespace?: string
+
     resources?: ResourceRequirements
     env_vars: Record<string, string>
     command?: string[]

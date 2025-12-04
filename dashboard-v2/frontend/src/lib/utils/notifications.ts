@@ -19,10 +19,10 @@ export const registerNotificationListener = (fn: Listener) => {
 }
 
 export const notify = {
-    success: (message: string) => listener?.({ message, status: 'normal' }),
-    error: (message: string) => listener?.({ message, status: 'critical' }),
-    loading: (message: string) => listener?.({ message, status: 'unknown' }),
-    info: (message: string) => listener?.({ message, status: 'normal' }),
+    normal: (message: string) => listener?.({ message, status: 'normal' }),
+    critical: (message: string) => listener?.({ message, status: 'critical' }),
+    unknown: (message: string) => listener?.({ message, status: 'unknown' }),
+    info: (message: string) => listener?.({ message, status: 'info' }),
     dismiss: () => { },
-    custom: (message: string) => listener?.({ message, status: 'normal' }),
+    warning: (message: string) => listener?.({ message, status: 'warning' }),
 }

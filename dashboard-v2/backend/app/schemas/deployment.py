@@ -25,6 +25,15 @@ class DeploymentCreate(BaseModel):
     expose_service: bool = Field(default=False)
     service_type: str = Field(default="ClusterIP")  # ClusterIP, NodePort, LoadBalancer
     
+    # Advanced Options
+    is_public: bool = Field(default=False)
+    run_as_root: bool = Field(default=False)
+    is_sso: bool = Field(default=False)
+    is_user_volume: bool = Field(default=False)
+    is_shared_volume: bool = Field(default=False)
+    is_gpu: bool = Field(default=False)
+    user_namespace: Optional[str] = None
+
     # Resources
     resources: Optional[ResourceRequirements] = None
     
