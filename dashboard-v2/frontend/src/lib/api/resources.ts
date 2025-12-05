@@ -19,4 +19,34 @@ export const resourcesApi = {
     get: async (kind: string, namespace: string, name: string): Promise<ApiResponse<any>> => {
         return apiClient.get<any>(`/resources/${kind}/${namespace}/${name}`)
     },
+
+    getLogs: async (namespace: string, name: string, container?: string, tailLines: number = 1000): Promise<ApiResponse<string>> => {
+        const params = new URLSearchParams()
+        if (container) params.append('container', container)
+        params.append('tail_lines', tailLines.toString())
+        const query = params.toString() ? `?${params.toString()}` : ''
+        return apiClient.get<string>(`/resources/pod/${namespace}/${name}/logs${query}`)
+    },
+
+    describe: async (kind: string, namespace: string, name: string): Promise<ApiResponse<string>> => {
+        return apiClient.get<string>(`/resources/${kind}/${namespace}/${name}/describe`)
+    },
+
+    applyYaml: async (yaml: string): Promise<ApiResponse<YamlApplyResult>> => {
+        return apiClient.post<YamlApplyResult>('/resources/apply', { yaml })
+    }
+}
+
+export interface YamlApplyResult {
+    created: number
+    exists: number
+    failed: number
+    total: number
+    results: Array<{
+        kind: string
+        name: string
+        namespace: string
+        status: string
+        message: string
+    }>
 }

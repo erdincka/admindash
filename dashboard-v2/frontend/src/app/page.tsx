@@ -30,7 +30,9 @@ import {
     TextInput,
     CheckBox,
     Select,
-    Layer
+    Layer,
+    DataView,
+    DataTable
 } from 'grommet';
 
 import {
@@ -48,11 +50,24 @@ import {
     Folder,
     FormNext,
     StatusGoodSmall,
-    Menu as MenuIcon
+    Menu as MenuIcon,
+    Close,
+    Terminal as TerminalIcon,
+    Document,
+    Info,
+    StatusGood,
+    StatusWarning,
+    StatusCritical,
+    StatusUnknown
 } from 'grommet-icons';
 import { notify } from '@/lib/utils/notifications';
 import { deploymentsApi, namespacesApi } from '@/lib/api/deployments';
 import { DeploymentCreate } from '@/types/deployment';
+import { resourcesApi, YamlApplyResult } from '@/lib/api/resources';
+import dynamic from 'next/dynamic';
+
+// Dynamically import Monaco Editor to avoid SSR issues
+const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
 // Define the navigation structure
 const MENU_ITEMS = [
@@ -131,6 +146,8 @@ const ImportApplication = () => {
     const [limitsText, setLimitsText] = useState('cpu: 1000m, memory: 1Gi');
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [pendingDeployment, setPendingDeployment] = useState<DeploymentCreate | null>(null);
+    const [yamlContent, setYamlContent] = useState('');
+    const [yamlErrors, setYamlErrors] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchNamespaces = async () => {
@@ -145,6 +162,46 @@ const ImportApplication = () => {
         };
         fetchNamespaces();
     }, []);
+
+    const handleApplyYaml = async () => {
+        if (!yamlContent || yamlContent.trim() === '') {
+            notify.warning('YAML content is required');
+            return;
+        }
+
+        // Basic YAML validation
+        try {
+            const yaml = require('js-yaml');
+            yaml.loadAll(yamlContent);
+            setYamlErrors([]);
+        } catch (e: any) {
+            setYamlErrors([e.message]);
+            notify.critical(`Invalid YAML: ${e.message}`);
+            return;
+        }
+
+        try {
+            const result = await resourcesApi.applyYaml(yamlContent);
+            if (result.data) {
+                const { created, exists, failed, total, results } = result.data;
+
+                if (failed > 0) {
+                    const errors = results.filter(r => r.status === 'error').map(r => `${r.kind}/${r.name}: ${r.message}`);
+                    notify.critical(`Failed to apply ${failed} of ${total} resource(s):\n${errors.join('\n')}`);
+                } else if (exists > 0 && created === 0) {
+                    notify.info(`All ${total} resource(s) already exist in the cluster`);
+                } else if (created > 0 && exists > 0) {
+                    notify.normal(`Applied ${created} resource(s), ${exists} already existed`);
+                    setYamlContent(''); // Clear on success
+                } else if (created > 0) {
+                    notify.normal(`Successfully created ${created} resource(s)`);
+                    setYamlContent(''); // Clear on success
+                }
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to apply YAML: ${error.message || 'Unknown error'}`);
+        }
+    };
 
     const handleShowConfirmation = async () => {
         // Validation
@@ -268,7 +325,7 @@ const ImportApplication = () => {
                     <Box pad="medium" gap="medium" width="large">
                         <Text>Deploy from a remote YAML manifest.</Text>
                         <FormField label="Manifest URL">
-                            <TextInput placeholder="https://example.com/deployment.yaml" />
+                            <TextInput placeholder="https://no.domain/deployment.yaml" />
                         </FormField>
                         <Button label="Import" primary alignSelf="start" onClick={() => notify.warning(`Will be implemented in the next release`)} />
                     </Box>
@@ -297,10 +354,42 @@ const ImportApplication = () => {
                     </Box>
                 </Tab>
                 <Tab title="Paste YAML">
-                    <Box pad="medium" gap="medium" width="large">
+                    <Box pad="medium" gap="medium" width="xlarge">
                         <Text>Directly paste your Kubernetes manifest.</Text>
-                        <TextArea placeholder="apiVersion: apps/v1..." rows={15} style={{ fontFamily: 'monospace' }} />
-                        <Button label="Apply" primary alignSelf="start" onClick={() => notify.warning(`Will be implemented in the next release`)} />
+                        <Box
+                            height="500px"
+                            border={{ color: yamlErrors.length > 0 ? 'status-critical' : 'border', size: 'small' }}
+                            round="small"
+                        >
+                            <Editor
+                                height="100%"
+                                defaultLanguage="yaml"
+                                value={yamlContent}
+                                onChange={(value) => setYamlContent(value || '')}
+                                theme="vs-dark"
+                                options={{
+                                    minimap: { enabled: false },
+                                    fontSize: 14,
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    tabSize: 2,
+                                }}
+                            />
+                        </Box>
+                        {yamlErrors.length > 0 && (
+                            <Box pad="small" background="status-critical" round="small">
+                                <Text color="white" size="small">
+                                    {yamlErrors.map((err, idx) => (
+                                        <div key={idx}>• {err}</div>
+                                    ))}
+                                </Text>
+                            </Box>
+                        )}
+                        <Box direction="row" gap="small">
+                            <Button label="Apply" primary alignSelf="start" onClick={handleApplyYaml} />
+                            <Button label="Clear" alignSelf="start" onClick={() => { setYamlContent(''); setYamlErrors([]); }} />
+                        </Box>
                     </Box>
                 </Tab>
                 <Tab title="Image Wizard">
@@ -520,6 +609,623 @@ const ImportApplication = () => {
     );
 };
 
+// Virtual Services Component
+const VirtualServices = ({ domain }: { domain: string }) => {
+    const [virtualServices, setVirtualServices] = useState<any[]>([]);
+    const [namespaces, setNamespaces] = useState<string[]>([]);
+    const [selectedNamespace, setSelectedNamespace] = useState('default');
+    const [services, setServices] = useState<any[]>([]);
+    const [showExposeDialog, setShowExposeDialog] = useState(false);
+    const [selectedService, setSelectedService] = useState<any>(null);
+    const [hostname, setHostname] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchNamespaces();
+        fetchVirtualServices();
+    }, []);
+
+    useEffect(() => {
+        if (selectedNamespace) {
+            fetchServices();
+        }
+    }, [selectedNamespace]);
+
+    const fetchNamespaces = async () => {
+        try {
+            const res = await namespacesApi.list();
+            if (res.data) {
+                setNamespaces(res.data.map(ns => ns.name));
+            }
+        } catch (e) {
+            console.error("Failed to fetch namespaces", e);
+        }
+    };
+
+    const fetchVirtualServices = async () => {
+        try {
+            const { virtualservicesApi } = await import('@/lib/api/virtualservices');
+            const res = await virtualservicesApi.list();
+            if (res.data) {
+                setVirtualServices(res.data);
+            }
+        } catch (e) {
+            console.error("Failed to fetch virtual services", e);
+        }
+    };
+
+    const fetchServices = async () => {
+        try {
+            const { virtualservicesApi } = await import('@/lib/api/virtualservices');
+            const res = await virtualservicesApi.listServices(selectedNamespace);
+            if (res.data) {
+                setServices(res.data);
+            }
+        } catch (e) {
+            console.error("Failed to fetch services", e);
+        }
+    };
+
+    const handleExposeService = async () => {
+        if (!hostname || !selectedService) return;
+
+        setLoading(true);
+        try {
+            const { virtualservicesApi } = await import('@/lib/api/virtualservices');
+            await virtualservicesApi.create({
+                namespace: selectedNamespace,
+                service_name: selectedService.name,
+                hostname,
+                domain,
+                labels: selectedService.labels
+            });
+            notify.normal(`Service exposed at https://${hostname}.${domain}`);
+            setShowExposeDialog(false);
+            setHostname('');
+            setSelectedService(null);
+            fetchVirtualServices();
+        } catch (error: any) {
+            notify.critical(`Failed to expose service: ${error.message || 'Unknown error'}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Filter VirtualServices that use the ezaf-gateway
+    const filteredVS = virtualServices.filter(vs =>
+        vs.spec?.gateways?.includes('istio-system/ezaf-gateway') &&
+        vs.spec?.hosts?.some((h: string) => h.includes(domain))
+    );
+
+    return (
+        <Box pad="large" gap="medium" animation="fadeIn">
+            <Heading level="2" margin="none">Virtual Services</Heading>
+            <Text color="text-weak">Manage Istio VirtualServices for ingress routing.</Text>
+
+            {/* Create VirtualService Section */}
+            <Box border={{ color: 'border', size: 'small' }} round="small" pad="medium" gap="medium">
+                <Heading level="4" margin="none">Expose Service</Heading>
+                <Grid columns={['small', 'flex']} gap="medium">
+                    <FormField label="Namespace">
+                        <Select
+                            options={namespaces}
+                            value={selectedNamespace}
+                            onChange={({ option }) => setSelectedNamespace(option)}
+                        />
+                    </FormField>
+                    <Box gap="small">
+                        <Text size="small" weight="bold">Services</Text>
+                        <Box direction="row" wrap gap="small">
+                            {services.map(svc => (
+                                <Button
+                                    key={svc.name}
+                                    label={`${svc.name} ${svc.ports.length > 0 ? `(${svc.ports[0].name}:${svc.ports[0].port})` : ''}`}
+                                    onClick={() => {
+                                        setSelectedService(svc);
+                                        setShowExposeDialog(true);
+                                    }}
+                                    size="small"
+                                />
+                            ))}
+                        </Box>
+                    </Box>
+                </Grid>
+            </Box>
+
+            {/* VirtualServices List */}
+            <Box gap="small">
+                <Heading level="4" margin="none">Exposed Services</Heading>
+                {filteredVS.length === 0 ? (
+                    <Text color="text-weak">No virtual services found</Text>
+                ) : (
+                    <Box gap="small">
+                        <DataTable
+                            primaryKey="id"
+                            data={filteredVS.map(vs => ({
+                                id: `${vs.metadata.name}-${vs.metadata.namespace}`,
+                                name: vs.metadata.name.replace('-vs', ''), //.replace(/-/g, ' '),
+                                namespace: vs.metadata.namespace,
+                                host: vs.spec.hosts.find((h: string) => h.includes(domain)) || '',
+                                gateway: vs.spec.gateways.join(', '),
+                                url: `https://${vs.spec.hosts.find((h: string) => h.includes(domain))}`
+                            }))}
+                            columns={[
+                                {
+                                    property: 'name',
+                                    header: 'Name',
+                                    render: datum => (
+                                        <Text weight="bold">
+                                            {datum.name}
+                                        </Text>
+                                    )
+                                },
+                                {
+                                    property: 'namespace',
+                                    header: 'Namespace',
+                                    size: 'small'
+                                },
+                                {
+                                    property: 'host',
+                                    header: 'Hostname',
+                                },
+                            ]}
+                            onClickRow={(event) => {
+                                window.open(event.datum.url, '_blank');
+                            }}
+                            background={{
+                                header: 'light-2',
+                                body: ['white', 'light-1']
+                            }}
+                            border={{
+                                body: {
+                                    color: 'border',
+                                    side: 'bottom'
+                                }
+                            }}
+                            pad="small"
+                            pin
+                            sortable
+                            paginate={{
+                                border: 'top',
+                                direction: 'row',
+                                fill: 'horizontal',
+                                flex: false,
+                                justify: 'end',
+                                pad: { top: '3xsmall' },
+                            }}
+                            step={10}
+                        />
+                    </Box>
+                )}
+            </Box>
+
+            {/* Expose Service Dialog */}
+            {showExposeDialog && selectedService && (
+                <Layer
+                    onEsc={() => setShowExposeDialog(false)}
+                    onClickOutside={() => setShowExposeDialog(false)}
+                >
+                    <Box pad="large" gap="medium" width="medium">
+                        <Heading level="3" margin="none">Expose Service</Heading>
+                        <Text>Exposing service: <strong>{selectedService.name}</strong></Text>
+
+                        <FormField label="Hostname" help={`Will be accessible at https://{hostname}.${domain}`}>
+                            <TextInput
+                                placeholder="my-app"
+                                value={hostname}
+                                onChange={e => setHostname(e.target.value)}
+                            />
+                        </FormField>
+
+                        {hostname && (
+                            <Box pad="small" background="light-2" round="small">
+                                <Text size="small">
+                                    <strong>URL:</strong> https://{hostname}.{domain}
+                                </Text>
+                                <Text size="small">
+                                    <strong>Namespace:</strong> {selectedNamespace}
+                                </Text>
+                            </Box>
+                        )}
+
+                        <Box direction="row" gap="medium" justify="end" margin={{ top: 'medium' }}>
+                            <Button label="Cancel" onClick={() => setShowExposeDialog(false)} />
+                            <Button
+                                label="Expose"
+                                primary
+                                disabled={!hostname || loading}
+                                onClick={handleExposeService}
+                            />
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
+        </Box>
+    );
+};
+
+// Kubernetes Resources Component
+const Terminal = dynamic(() => import('@/components/Terminal'), {
+    ssr: false,
+    loading: () => <Box pad="medium"><Text>Loading terminal...</Text></Box>
+});
+
+const KubernetesResources = ({ domain }: { domain: string }) => {
+    const [resourceType, setResourceType] = useState('pod');
+    const [resources, setResources] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [showTerminal, setShowTerminal] = useState(false);
+    const [terminalPod, setTerminalPod] = useState<{ name: string, namespace: string, container: string } | null>(null);
+    const [showLogs, setShowLogs] = useState(false);
+    const [logsContent, setLogsContent] = useState('');
+    const [logsTitle, setLogsTitle] = useState('');
+    const [showDescribe, setShowDescribe] = useState(false);
+    const [describeContent, setDescribeContent] = useState('');
+    const [describeTitle, setDescribeTitle] = useState('');
+
+    const resourceTypes = [
+        { label: 'Pods', value: 'pod' },
+        { label: 'Deployments', value: 'deployment' },
+        { label: 'StatefulSets', value: 'statefulset' },
+        { label: 'DaemonSets', value: 'daemonset' },
+        { label: 'Services', value: 'service' },
+        { label: 'ConfigMaps', value: 'configmap' },
+        { label: 'Secrets', value: 'secret' },
+        { label: 'PVCs', value: 'persistentvolumeclaim' },
+        { label: 'PVs', value: 'persistentvolume' }
+    ];
+
+    useEffect(() => {
+        fetchResources();
+    }, [resourceType]);
+
+    const fetchResources = async () => {
+        setLoading(true);
+        try {
+            const res = await resourcesApi.list(resourceType);
+            if (res.data) {
+                // Add unique ID to avoid key collisions
+                const resourcesWithId = res.data.map((r: any) => ({
+                    ...r,
+                    id: `${r.name}-${r.namespace}`
+                }));
+                setResources(resourcesWithId);
+            }
+        } catch (e) {
+            console.error(`Failed to fetch ${resourceType}s`, e);
+            notify.critical(`Failed to fetch ${resourceType}s`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleOpenTerminal = (pod: any) => {
+        const containerName = pod.full_data?.spec?.containers?.[0]?.name;
+        if (containerName) {
+            setTerminalPod({
+                name: pod.name,
+                namespace: pod.namespace,
+                container: containerName
+            });
+            setShowTerminal(true);
+        } else {
+            notify.warning('No container found in pod');
+        }
+    };
+
+    const handleShowLogs = async (resource: any) => {
+        try {
+            const containerName = resource.full_data?.spec?.containers?.[0]?.name;
+            const res = await resourcesApi.getLogs(resource.namespace, resource.name, containerName);
+            if (res.data) {
+                setLogsContent(res.data);
+                setLogsTitle(`Logs: ${resource.namespace}/${resource.name}${containerName ? ` (${containerName})` : ''}`);
+                setShowLogs(true);
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to fetch logs: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleDescribe = async (resource: any) => {
+        try {
+            const res = await resourcesApi.describe(resourceType, resource.namespace, resource.name);
+            if (res.data) {
+                setDescribeContent(res.data);
+                setDescribeTitle(`Describe: ${resourceType}/${resource.namespace}/${resource.name}`);
+                setShowDescribe(true);
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to describe resource: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const getColumns = () => {
+        const baseColumns: any[] = [
+            {
+                property: 'name',
+                header: 'Name',
+                render: (datum: any) => <Text weight="bold">{datum.name}</Text>
+            },
+            {
+                property: 'namespace',
+                header: 'Namespace',
+                size: 'small'
+            }
+        ];
+
+        // Add resource-specific columns
+        if (resourceType === 'pod') {
+            baseColumns.push({
+                property: 'status',
+                header: 'Status',
+                size: 'xsmall',
+                render: (datum: any) => {
+                    const phase = datum.status?.phase || 'Unknown';
+                    let icon;
+                    switch (phase) {
+                        case 'Running':
+                            icon = <StatusGood color="status-ok" />;
+                            break;
+                        case 'Pending':
+                            icon = <StatusWarning color="status-warning" />;
+                            break;
+                        case 'Succeeded':
+                            icon = <StatusGood color="status-ok" />;
+                            break;
+                        case 'Failed':
+                            icon = <StatusCritical color="status-critical" />;
+                            break;
+                        default:
+                            icon = <StatusUnknown color="status-unknown" />;
+                    }
+                    return (
+                        <Box direction="row" align="center" gap="xsmall" title={phase}>
+                            {icon}
+                        </Box>
+                    );
+                }
+            });
+        }
+
+        if (resourceType === 'deployment' || resourceType === 'statefulset') {
+            baseColumns.push({
+                property: 'status',
+                header: 'Ready',
+                size: 'xsmall',
+                render: (datum: any) => {
+                    const ready = datum.status?.available_replicas || 0;
+                    const total = datum.status?.replicas || 0;
+                    return <Text>{ready}/{total}</Text>;
+                }
+            });
+        }
+
+        baseColumns.push({
+            property: 'created_at',
+            header: 'Age',
+            size: 'small',
+            render: (datum: any) => {
+                if (!datum.created_at) return <Text>-</Text>;
+                const created = new Date(datum.created_at);
+                const now = new Date();
+                const diffMs = now.getTime() - created.getTime();
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMins / 60);
+                const diffDays = Math.floor(diffHours / 24);
+
+                if (diffDays > 0) return <Text>{diffDays}d</Text>;
+                if (diffHours > 0) return <Text>{diffHours}h</Text>;
+                return <Text>{diffMins}m</Text>;
+            }
+        });
+
+        // Add actions column
+        baseColumns.push({
+            property: 'actions',
+            header: 'Actions',
+            size: 'small',
+            render: (datum: any) => (
+                <Box direction="row" gap="xsmall">
+                    {resourceType === 'pod' && datum.status?.phase === 'Running' && (
+                        <Button
+                            icon={<TerminalIcon size="small" />}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenTerminal(datum);
+                            }}
+                            tip="Open Terminal"
+                            plain
+                            hoverIndicator
+                        />
+                    )}
+                    {resourceType === 'pod' && (
+                        <Button
+                            icon={<Document size="small" />}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowLogs(datum);
+                            }}
+                            tip="View Logs"
+                            plain
+                            hoverIndicator
+                        />
+                    )}
+                    <Button
+                        icon={<Info size="small" />}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDescribe(datum);
+                        }}
+                        tip="Describe"
+                        plain
+                        hoverIndicator
+                    />
+                </Box>
+            )
+        });
+
+        return baseColumns;
+    };
+
+    return (
+        <Box pad="large" gap="medium" animation="fadeIn">
+            <Heading level="2" margin="none">Kubernetes Resources</Heading>
+            <Text color="text-weak">View and manage cluster resources.</Text>
+
+            {/* Resource Type Selector */}
+            <Box direction="row" wrap gap="small">
+                {resourceTypes.map(type => (
+                    <Button
+                        key={type.value}
+                        label={type.label}
+                        onClick={() => setResourceType(type.value)}
+                        primary={resourceType === type.value}
+                        secondary={resourceType !== type.value}
+                        size="small"
+                    />
+                ))}
+            </Box>
+
+            {/* Resources Table */}
+            <Box>
+                {loading ? (
+                    <Box align="center" pad="large">
+                        <Text>Loading {resourceType}s...</Text>
+                    </Box>
+                ) : resources.length === 0 ? (
+                    <Box align="center" pad="large">
+                        <Text color="text-weak">No {resourceType}s found</Text>
+                    </Box>
+                ) : (
+                    <DataTable
+                        primaryKey="id"
+                        data={resources}
+                        columns={getColumns()}
+                        background={{
+                            header: 'light-2',
+                            body: ['white', 'light-1']
+                        }}
+                        border={{
+                            body: {
+                                color: 'border',
+                                side: 'bottom'
+                            }
+                        }}
+                        pad="small"
+                        pin
+                        sortable
+                        paginate={{
+                            border: 'top',
+                            direction: 'row',
+                            fill: 'horizontal',
+                            flex: false,
+                            justify: 'end',
+                            pad: { top: 'xsmall' },
+                        }}
+                        step={10}
+                    />
+                )}
+            </Box>
+
+            {/* Terminal Modal */}
+            {showTerminal && terminalPod && (
+                <Layer
+                    onEsc={() => setShowTerminal(false)}
+                    onClickOutside={() => setShowTerminal(false)}
+                    full="horizontal"
+                    margin="medium"
+                >
+                    <Box fill background="#1e1e1e" pad="small" gap="small">
+                        <Box direction="row" justify="between" align="center">
+                            <Text color="white" weight="bold">
+                                Terminal: {terminalPod.namespace}/{terminalPod.name} ({terminalPod.container})
+                            </Text>
+                            <Button icon={<Close color="white" />} onClick={() => setShowTerminal(false)} plain />
+                        </Box>
+                        <Box flex>
+                            <Terminal
+                                namespace={terminalPod.namespace}
+                                pod={terminalPod.name}
+                                container={terminalPod.container}
+                            />
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
+
+            {/* Logs Modal */}
+            {showLogs && (
+                <Layer
+                    onEsc={() => setShowLogs(false)}
+                    onClickOutside={() => setShowLogs(false)}
+                    full="horizontal"
+                    margin="medium"
+                >
+                    <Box fill background="white" pad="medium" gap="small">
+                        <Box direction="row" justify="between" align="center">
+                            <Text weight="bold">{logsTitle}</Text>
+                            <Button icon={<Close />} onClick={() => setShowLogs(false)} plain />
+                        </Box>
+                        <Box
+                            flex
+                            overflow="auto"
+                            background="#1e1e1e"
+                            pad="small"
+                            round="small"
+                        >
+                            <Text
+                                style={{
+                                    fontFamily: 'monospace',
+                                    fontSize: '12px',
+                                    whiteSpace: 'pre-wrap',
+                                    color: '#d4d4d4'
+                                }}
+                            >
+                                {logsContent || 'No logs available'}
+                            </Text>
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
+
+            {/* Describe Modal */}
+            {showDescribe && (
+                <Layer
+                    onEsc={() => setShowDescribe(false)}
+                    onClickOutside={() => setShowDescribe(false)}
+                    full
+                    margin="medium"
+                >
+                    <Box fill background="white" pad="medium" gap="small">
+                        <Box direction="row" justify="between" align="center">
+                            <Text weight="bold">{describeTitle}</Text>
+                            <Button icon={<Close />} onClick={() => setShowDescribe(false)} plain />
+                        </Box>
+                        <Box flex border={{ color: 'border', size: 'small' }} round="small">
+                            <Editor
+                                height="100%"
+                                defaultLanguage="yaml"
+                                value={describeContent}
+                                theme="vs-dark"
+                                options={{
+                                    readOnly: true,
+                                    minimap: { enabled: false },
+                                    fontSize: 12,
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    tabSize: 2,
+                                }}
+                            />
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
+        </Box>
+    );
+};
+
 // Cluster Overview Widget (Superuser Visibility)
 const ClusterOverview = ({ metrics, loading }: { metrics: ClusterMetrics | null, loading: boolean }) => {
     if (loading || !metrics) {
@@ -603,6 +1309,12 @@ export default function Home() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
     const [metrics, setMetrics] = useState<ClusterMetrics | null>(null);
     const [loadingMetrics, setLoadingMetrics] = useState(false);
+    const [domain, setDomain] = useState('no.domain');
+
+    useEffect(() => {
+        // Fetch domain once on mount
+        loadDomain();
+    }, []);
 
     useEffect(() => {
         if (activeItem === 'dashboard') {
@@ -610,10 +1322,23 @@ export default function Home() {
         }
     }, [activeItem]);
 
+    const loadDomain = async () => {
+        try {
+            const response = await clusterApi.getDomain();
+            // Backend returns { domain: "..." } directly
+            if (response && response.domain) {
+                setDomain(response.domain);
+            }
+        } catch (error) {
+            console.error("Failed to load cluster domain:", error);
+        }
+    };
+
     const loadMetrics = async () => {
         setLoadingMetrics(true);
         try {
             const response = await clusterApi.getMetrics();
+            // Backend returns ClusterMetrics directly
             if (response) {
                 setMetrics(response);
             }
@@ -643,11 +1368,11 @@ export default function Home() {
             case 'apps-import':
                 return <ImportApplication />;
             case 'apps-resources':
-                return <ContentPlaceholder title="Kubernetes Resources" description="View and manage low-level Kubernetes resources." />;
+                return <KubernetesResources domain={domain} />;
             case 'apps-charts':
                 return <ContentPlaceholder title="Helm Charts" description="Manage installed Helm releases and repositories." />;
             case 'endpoints-services':
-                return <ContentPlaceholder title="Virtual Services" description="Manage ingress, routing, and load balancing for your services." />;
+                return <VirtualServices domain={domain} />;
             case 'endpoints-models':
                 return <ContentPlaceholder title="Model Endpoints" description="Serve and scale your AI models via API endpoints." />;
             case 'endpoints-playgrounds':
@@ -666,12 +1391,30 @@ export default function Home() {
     return (
         <Page background="background-back" flex="grow">
             <PageContent>
+                {/* Header with Domain */}
+                <Box
+                    direction="row"
+                    justify="between"
+                    align="center"
+                    pad={{ horizontal: 'medium', vertical: 'small' }}
+                    background="white"
+                    round="small"
+                    elevation="small"
+                    margin={{ bottom: 'medium' }}
+                >
+                    <Heading level="3" margin="none">HPE AI Essentials Dashboard</Heading>
+                    <Box direction="row" gap="small" align="center">
+                        <Text size="small" color="text-weak">Cluster:</Text>
+                        <Text weight="bold">{domain.toUpperCase()}</Text>
+                    </Box>
+                </Box>
+
                 <Grid
                     columns={['auto', 'flex']}
                     rows={['auto']}
                     areas={[['sidebar', 'main']]}
                     gap="medium"
-                    pad={{ top: 'medium', bottom: 'large' }}
+                    pad={{ bottom: 'large' }}
                 >
                     {/* Sidebar Navigation */}
                     <Box gridArea="sidebar" width={sidebarCollapsed ? 'auto' : 'small'} gap="medium" animation="fadeIn">

@@ -15,7 +15,7 @@ async def get_user_from_headers(
     if settings.environment == "development" and not x_forwarded_email:
         return User(
             username="dev_user",
-            email="dev@example.com",
+            email="dev@no.domain",
             groups=["admin", "developers"]
         )
     

@@ -95,3 +95,28 @@ async def get_cluster_metrics():
     except Exception as e:
         logger.error(f"Failed to get cluster metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/domain")
+async def get_domain():
+    """Get cluster domain name from ConfigMap"""
+    from kubernetes_asyncio import client
+    try:
+        await K8sClient.initialize()
+        
+        async with client.ApiClient() as api:
+            core_v1 = client.CoreV1Api(api)
+            
+            try:
+                config_map = await core_v1.read_namespaced_config_map(
+                    name="ezua-cluster-config",
+                    namespace="ezua-system"
+                )
+                domain = config_map.data.get("cluster.domainName") if config_map.data else None
+                
+                return {"domain": domain or "no.domain"}
+            except Exception as e:
+                logger.warning(f"Could not retrieve domain from cluster config: {e}")
+                return {"domain": "no.domain"}
+    except Exception as e:
+        logger.error(f"Error getting cluster domain: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

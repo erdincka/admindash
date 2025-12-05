@@ -1,0 +1,8 @@
+.git
+node_modules
+dist
+logs
+*.log
+.DS_Store
+tilt*
+.next

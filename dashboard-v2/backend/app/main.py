@@ -125,6 +125,10 @@ app.include_router(resources.router, prefix=f"{settings.api_prefix}/resources", 
 app.include_router(charts.router, prefix=f"{settings.api_prefix}/charts", tags=["charts"])
 app.include_router(cluster.router, prefix=f"{settings.api_prefix}/cluster", tags=["cluster"])
 
+from app.api.v1 import virtualservices
+app.include_router(virtualservices.router, prefix=f"{settings.api_prefix}/virtualservices", tags=["virtualservices"])
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint"""

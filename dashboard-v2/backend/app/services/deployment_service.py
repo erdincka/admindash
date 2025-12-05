@@ -158,7 +158,7 @@ class DeploymentService:
                         domain = config_map.data.get("cluster.domainName") if config_map.data else None
                     except Exception as e:
                         logger.warning(f"Could not retrieve domain from cluster config: {e}")
-                        domain = "example.com"  # Fallback domain
+                        domain = "no.domain"  # Fallback domain
                     
                     service_spec = client.V1Service(
                         api_version="v1",
