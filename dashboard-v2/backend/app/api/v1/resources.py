@@ -8,7 +8,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-SUPPORTED_KINDS = ['pod', 'deployment', 'service', 'configmap', 'secret', 'persistentvolumeclaim', 'persistentvolume', 'statefulset', 'daemonset']
+SUPPORTED_KINDS = ['pod', 'deployment', 'service', 'configmap', 'secret', 'persistentvolumeclaim', 'persistentvolume', 'statefulset', 'daemonset', 'virtualservice']
 
 @router.get("/{kind}", response_model=ApiResponse[List[dict]])
 async def list_resources(
@@ -184,28 +184,60 @@ async def describe_resource(
             elif kind == 'daemonset':
                 api_instance = client.AppsV1Api(api)
                 resource = await api_instance.read_namespaced_daemon_set(name, namespace)
+            elif kind == 'virtualservice':
+                api_instance = client.CustomObjectsApi(api)
+                # Try v1beta1 first, then v1alpha3
+                try:
+                    resource = await api_instance.get_namespaced_custom_object(
+                        group="networking.istio.io",
+                        version="v1beta1",
+                        namespace=namespace,
+                        plural="virtualservices",
+                        name=name
+                    )
+                except client.exceptions.ApiException as e:
+                    if e.status == 404:
+                         resource = await api_instance.get_namespaced_custom_object(
+                            group="networking.istio.io",
+                            version="v1alpha3",
+                            namespace=namespace,
+                            plural="virtualservices",
+                            name=name
+                        )
+                    else:
+                        raise e
             else:
-                raise ValidationError(f"Unsupported resource kind: {kind}")
+                raise ValidationError(f"Unsupported kind for describe: {kind}")
             
-            # Convert to dict and then to YAML
-            resource_dict = resource.to_dict() if hasattr(resource, 'to_dict') else resource
-            yaml_output = yaml.dump(resource_dict, default_flow_style=False, sort_keys=False)
+            # Convert to dict if it's a model object
+            if hasattr(resource, 'to_dict'):
+                resource_dict = resource.to_dict()
+            else:
+                resource_dict = resource
+                
+            # Clean up metadata
+            if 'metadata' in resource_dict:
+                metadata = resource_dict['metadata']
+                if 'managedFields' in metadata:
+                    del metadata['managedFields']
+            
+            # Dump to YAML
+            yaml_content = yaml.dump(resource_dict, default_flow_style=False)
             
             return ApiResponse(
                 success=True,
-                data=yaml_output,
-                message=f"Retrieved {kind}/{name}",
+                data=yaml_content,
                 timestamp=datetime.utcnow()
             )
             
     except client.exceptions.ApiException as e:
         if e.status == 404:
-            raise ResourceNotFound(f"{kind} {name} not found in namespace {namespace}")
-        logger.error(f"Kubernetes API error: {e}", exc_info=True)
-        raise K8sApiError(f"Failed to describe {kind}: {e.reason}")
+            raise ResourceNotFound(f"{kind} '{name}' not found in namespace '{namespace}'")
+        logger.error(f"K8s API error: {e}", exc_info=True)
+        raise K8sApiError(f"Failed to describe resource: {str(e)}")
     except Exception as e:
         logger.error(f"Error describing resource: {e}", exc_info=True)
-        raise K8sApiError(f"Failed to describe {kind}: {str(e)}")
+        raise K8sApiError(f"Failed to describe resource: {str(e)}")
 
 @router.post("/apply", response_model=ApiResponse[dict])
 async def apply_yaml(
@@ -354,3 +386,88 @@ async def apply_yaml(
     except Exception as e:
         logger.error(f"Error applying YAML: {e}", exc_info=True)
         raise K8sApiError(f"Failed to apply YAML: {str(e)}")
+
+@router.delete("/{kind}/{namespace}/{name}", response_model=ApiResponse[dict])
+async def delete_resource(
+    kind: str,
+    namespace: str,
+    name: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Delete a Kubernetes resource"""
+    from kubernetes_asyncio import client
+    from app.core.errors import K8sApiError, ResourceNotFound, ValidationError
+    import logging
+
+    logger = logging.getLogger(__name__)
+    
+    if kind.lower() not in SUPPORTED_KINDS:
+         raise ValidationError(f"Unsupported resource kind: {kind}")
+
+    try:
+        await K8sClient.initialize()
+        
+        async with client.ApiClient() as api:
+            if kind == 'pod':
+                await client.CoreV1Api(api).delete_namespaced_pod(name, namespace)
+            elif kind == 'deployment':
+                await client.AppsV1Api(api).delete_namespaced_deployment(name, namespace)
+            elif kind == 'service':
+                await client.CoreV1Api(api).delete_namespaced_service(name, namespace)
+            elif kind == 'configmap':
+                await client.CoreV1Api(api).delete_namespaced_config_map(name, namespace)
+            elif kind == 'secret':
+                await client.CoreV1Api(api).delete_namespaced_secret(name, namespace)
+            elif kind == 'persistentvolumeclaim':
+                await client.CoreV1Api(api).delete_namespaced_persistent_volume_claim(name, namespace)
+            elif kind == 'persistentvolume':
+                await client.CoreV1Api(api).delete_persistent_volume(name)
+            elif kind == 'statefulset':
+                await client.AppsV1Api(api).delete_namespaced_stateful_set(name, namespace)
+            elif kind == 'daemonset':
+                await client.AppsV1Api(api).delete_namespaced_daemon_set(name, namespace)
+            elif kind == 'virtualservice':
+                custom_api = client.CustomObjectsApi(api)
+                # Try v1beta1 first
+                try:
+                    await custom_api.delete_namespaced_custom_object(
+                        group="networking.istio.io",
+                        version="v1beta1",
+                        namespace=namespace,
+                        plural="virtualservices",
+                        name=name
+                    )
+                except client.exceptions.ApiException as e:
+                     if e.status == 404:
+                         # Maybe it's v1alpha3 or maybe it really doesn't exist. 
+                         # Try v1alpha3
+                         await custom_api.delete_namespaced_custom_object(
+                            group="networking.istio.io",
+                            version="v1alpha3",
+                            namespace=namespace,
+                            plural="virtualservices",
+                            name=name
+                        )
+                     else:
+                         raise e
+            else:
+                # Should be caught by SUPPORTED_KINDS check, but safety net
+                raise K8sApiError(f"Delete not implemented for kind: {kind}")
+            
+            logger.info(f"Deleted {kind}/{namespace}/{name}")
+            
+            return ApiResponse(
+                success=True,
+                data={'deleted': True, 'kind': kind, 'namespace': namespace, 'name': name},
+                message=f"Resource {kind}/{namespace}/{name} deleted successfully",
+                timestamp=datetime.utcnow()
+            )
+            
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            raise ResourceNotFound(f"{kind} '{name}' not found in namespace '{namespace}'")
+        logger.error(f"K8s API error deleting resource: {e}", exc_info=True)
+        raise K8sApiError(f"Failed to delete resource: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error deleting resource: {e}", exc_info=True)
+        raise K8sApiError(f"Failed to delete resource: {str(e)}")

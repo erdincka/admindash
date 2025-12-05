@@ -26,7 +26,7 @@ class ApiClient {
             data = await response.json()
         } catch (e) {
             const errorMessage = 'Failed to parse response'
-            notify.error(errorMessage)
+            notify.critical(errorMessage)
             throw new Error(errorMessage)
         }
 
@@ -34,7 +34,7 @@ class ApiClient {
             const errorMessage = data?.error?.message || data?.message || 'An unexpected error occurred'
             // Don't notify for 401/403 as they might be handled by auth flow
             if (response.status !== 401 && response.status !== 403) {
-                notify.error(errorMessage)
+                notify.critical(errorMessage)
             }
             throw new Error(errorMessage)
         }

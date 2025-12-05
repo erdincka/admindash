@@ -32,6 +32,10 @@ export const resourcesApi = {
         return apiClient.get<string>(`/resources/${kind}/${namespace}/${name}/describe`)
     },
 
+    delete: async (kind: string, namespace: string, name: string): Promise<ApiResponse<any>> => {
+        return apiClient.delete<any>(`/resources/${kind}/${namespace}/${name}`)
+    },
+
     applyYaml: async (yaml: string): Promise<ApiResponse<YamlApplyResult>> => {
         return apiClient.post<YamlApplyResult>('/resources/apply', { yaml })
     }

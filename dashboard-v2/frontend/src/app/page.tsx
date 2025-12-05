@@ -32,7 +32,8 @@ import {
     Select,
     Layer,
     DataView,
-    DataTable
+    DataTable,
+    Anchor
 } from 'grommet';
 
 import {
@@ -58,12 +59,17 @@ import {
     StatusGood,
     StatusWarning,
     StatusCritical,
-    StatusUnknown
+    StatusUnknown,
+    Upgrade,
+    Trash,
+    Add,
+    Refresh
 } from 'grommet-icons';
 import { notify } from '@/lib/utils/notifications';
 import { deploymentsApi, namespacesApi } from '@/lib/api/deployments';
 import { DeploymentCreate } from '@/types/deployment';
 import { resourcesApi, YamlApplyResult } from '@/lib/api/resources';
+import { chartsApi } from '@/lib/api/charts';
 import dynamic from 'next/dynamic';
 
 // Dynamically import Monaco Editor to avoid SSR issues
@@ -619,6 +625,11 @@ const VirtualServices = ({ domain }: { domain: string }) => {
     const [selectedService, setSelectedService] = useState<any>(null);
     const [hostname, setHostname] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showDescribe, setShowDescribe] = useState(false);
+    const [describeContent, setDescribeContent] = useState('');
+    const [describeTitle, setDescribeTitle] = useState('');
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [selectedVS, setSelectedVS] = useState<any>(null);
 
     useEffect(() => {
         fetchNamespaces();
@@ -691,6 +702,33 @@ const VirtualServices = ({ domain }: { domain: string }) => {
         }
     };
 
+    const handleDescribe = async (vs: any) => {
+        try {
+            const res = await resourcesApi.describe('virtualservice', vs.metadata.namespace, vs.metadata.name);
+            if (res.data) {
+                setDescribeContent(res.data);
+                setDescribeTitle(`Describe: VirtualService/${vs.metadata.namespace}/${vs.metadata.name}`);
+                setShowDescribe(true);
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to describe virtual service: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!selectedVS) return;
+
+        try {
+            await resourcesApi.delete('virtualservice', selectedVS.metadata.namespace, selectedVS.metadata.name);
+            notify.normal(`VirtualService ${selectedVS.metadata.name} deleted successfully`);
+            setShowDeleteConfirm(false);
+            setSelectedVS(null);
+            fetchVirtualServices();
+        } catch (error: any) {
+            notify.critical(`Failed to delete virtual service: ${error.message || 'Unknown error'}`);
+        }
+    };
+
     // Filter VirtualServices that use the ezaf-gateway
     const filteredVS = virtualServices.filter(vs =>
         vs.spec?.gateways?.includes('istio-system/ezaf-gateway') &&
@@ -743,11 +781,12 @@ const VirtualServices = ({ domain }: { domain: string }) => {
                             primaryKey="id"
                             data={filteredVS.map(vs => ({
                                 id: `${vs.metadata.name}-${vs.metadata.namespace}`,
-                                name: vs.metadata.name.replace('-vs', ''), //.replace(/-/g, ' '),
+                                name: vs.metadata.name.replace('-vs', ''),
                                 namespace: vs.metadata.namespace,
                                 host: vs.spec.hosts.find((h: string) => h.includes(domain)) || '',
                                 gateway: vs.spec.gateways.join(', '),
-                                url: `https://${vs.spec.hosts.find((h: string) => h.includes(domain))}`
+                                url: `https://${vs.spec.hosts.find((h: string) => h.includes(domain))}`,
+                                _original: vs
                             }))}
                             columns={[
                                 {
@@ -768,10 +807,49 @@ const VirtualServices = ({ domain }: { domain: string }) => {
                                     property: 'host',
                                     header: 'Hostname',
                                 },
+                                {
+                                    property: 'url',
+                                    header: 'URL',
+                                    render: datum => (
+                                        <Button
+                                            label={datum.url}
+                                            onClick={() => window.open(datum.url, '_blank')}
+                                            plain
+                                            style={{ textDecoration: 'underline' }}
+                                        />
+                                    )
+                                },
+                                {
+                                    property: 'actions',
+                                    header: 'Actions',
+                                    size: 'xsmall',
+                                    render: datum => (
+                                        <Box direction="row" gap="xsmall">
+                                            <Button
+                                                icon={<Info size="small" />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDescribe(datum._original);
+                                                }}
+                                                tip="Describe"
+                                                plain
+                                                hoverIndicator
+                                            />
+                                            <Button
+                                                icon={<Trash size="small" color="status-critical" />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedVS(datum._original);
+                                                    setShowDeleteConfirm(true);
+                                                }}
+                                                tip="Delete"
+                                                plain
+                                                hoverIndicator
+                                            />
+                                        </Box>
+                                    )
+                                }
                             ]}
-                            onClickRow={(event) => {
-                                window.open(event.datum.url, '_blank');
-                            }}
                             background={{
                                 header: 'light-2',
                                 body: ['white', 'light-1']
@@ -791,7 +869,7 @@ const VirtualServices = ({ domain }: { domain: string }) => {
                                 fill: 'horizontal',
                                 flex: false,
                                 justify: 'end',
-                                pad: { top: '3xsmall' },
+                                pad: { top: 'xsmall' },
                             }}
                             step={10}
                         />
@@ -840,6 +918,436 @@ const VirtualServices = ({ domain }: { domain: string }) => {
                     </Box>
                 </Layer>
             )}
+
+            {/* Describe Modal */}
+            {showDescribe && (
+                <Layer
+                    onEsc={() => setShowDescribe(false)}
+                    onClickOutside={() => setShowDescribe(false)}
+                    full
+                    margin="medium"
+                >
+                    <Box fill background="white" pad="medium" gap="small">
+                        <Box direction="row" justify="between" align="center">
+                            <Text weight="bold">{describeTitle}</Text>
+                            <Button icon={<Close />} onClick={() => setShowDescribe(false)} plain />
+                        </Box>
+                        <Box flex border={{ color: 'border', size: 'small' }} round="small">
+                            <Editor
+                                height="100%"
+                                defaultLanguage="yaml"
+                                value={describeContent}
+                                theme="vs-dark"
+                                options={{
+                                    readOnly: true,
+                                    minimap: { enabled: false },
+                                    fontSize: 12,
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    tabSize: 2,
+                                }}
+                            />
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && selectedVS && (
+                <Layer
+                    onEsc={() => setShowDeleteConfirm(false)}
+                    onClickOutside={() => setShowDeleteConfirm(false)}
+                >
+                    <Box pad="large" gap="medium" width="medium">
+                        <Heading level="3" margin="none">Delete VirtualService</Heading>
+
+                        <Text>
+                            Are you sure you want to delete <strong>{selectedVS.metadata.name}</strong> from namespace <strong>{selectedVS.metadata.namespace}</strong>?
+                        </Text>
+
+                        <Box background="status-warning" pad="small" round="small">
+                            <Text size="small">
+                                ⚠️ This will remove the VirtualService and the service will no longer be accessible via the ingress gateway.
+                            </Text>
+                        </Box>
+
+                        <Box direction="row" gap="medium" justify="end">
+                            <Button label="Cancel" onClick={() => setShowDeleteConfirm(false)} />
+                            <Button
+                                label="Delete"
+                                color="status-critical"
+                                primary
+                                onClick={handleDelete}
+                            />
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
+        </Box>
+    );
+};
+
+// Helm Charts Component
+const HelmCharts = () => {
+    const [charts, setCharts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [showInstall, setShowInstall] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Install form state
+    const [installForm, setInstallForm] = useState({
+        name: '',
+        chart: '',
+        namespace: 'default',
+        repo_url: '',
+        repo_name: '',
+        version: '',
+        create_namespace: true
+    });
+
+    useEffect(() => {
+        fetchCharts();
+    }, []);
+
+    const fetchCharts = async () => {
+        setLoading(true);
+        try {
+            const res = await chartsApi.list();
+            if (res.data) {
+                setCharts(res.data);
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to fetch charts: ${error.message || 'Unknown error'}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleInstall = async () => {
+        // Validation
+        if (!installForm.name || !installForm.chart) {
+            notify.warning('Name and chart are required');
+            return;
+        }
+
+        try {
+            const request: any = {
+                name: installForm.name,
+                chart: installForm.chart,
+                namespace: installForm.namespace,
+                create_namespace: installForm.create_namespace
+            };
+
+            if (installForm.repo_url && installForm.repo_name) {
+                request.repo_url = installForm.repo_url;
+                request.repo_name = installForm.repo_name;
+            }
+
+            if (installForm.version) {
+                request.version = installForm.version;
+            }
+
+            await chartsApi.install(request);
+            notify.normal(`Helm chart ${installForm.name} installed successfully`);
+            setShowInstall(false);
+            setInstallForm({
+                name: '',
+                chart: '',
+                namespace: 'default',
+                repo_url: '',
+                repo_name: '',
+                version: '',
+                create_namespace: true
+            });
+            fetchCharts();
+        } catch (error: any) {
+            notify.critical(`Failed to install chart: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    return (
+        <Box pad="large" gap="medium" animation="fadeIn">
+            <Box direction="row" justify="between" align="center">
+                <Box>
+                    <Heading level="2" margin="none">Helm Releases</Heading>
+                    <Text color="text-weak">Manage installed Helm releases in the cluster</Text>
+                </Box>
+                <Box direction="row" gap="small">
+                    <Button
+                        icon={<Refresh />}
+                        onClick={fetchCharts}
+                        tip="Refresh"
+                        disabled={loading}
+                    />
+                    <Button
+                        icon={<Add />}
+                        label="Install Chart"
+                        primary
+                        onClick={() => setShowInstall(true)}
+                    />
+                </Box>
+            </Box>
+
+            {/* Search Filter */}
+            <Box width="medium">
+                <TextInput
+                    placeholder="Search releases..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    icon={<FormNext />}
+                />
+            </Box>
+
+            {/* Charts Table */}
+            <Box>
+                {loading ? (
+                    <Box align="center" pad="large">
+                        <Text>Loading charts...</Text>
+                    </Box>
+                ) : (() => {
+                    const filteredCharts = charts.filter(chart => {
+                        if (!searchQuery) return true;
+                        const query = searchQuery.toLowerCase();
+                        return (
+                            chart.name?.toLowerCase().includes(query) ||
+                            chart.namespace?.toLowerCase().includes(query) ||
+                            chart.chart?.toLowerCase().includes(query) ||
+                            chart.status?.toLowerCase().includes(query)
+                        );
+                    });
+
+                    return filteredCharts.length === 0 ? (
+                        <Box align="center" pad="large">
+                            <Text color="text-weak">
+                                {searchQuery ? 'No releases match your search' : 'No Helm releases installed'}
+                            </Text>
+                        </Box>
+                    ) : (
+                        <DataTable
+                            primaryKey="name"
+                            data={filteredCharts}
+                            columns={[
+                                {
+                                    property: 'name',
+                                    header: 'Name',
+                                    render: (datum: any) => <Text weight="bold">{datum.name}</Text>
+                                },
+                                {
+                                    property: 'namespace',
+                                    header: 'Namespace',
+                                    size: 'small'
+                                },
+                                {
+                                    property: 'chart',
+                                    header: 'Chart',
+                                    size: 'medium'
+                                },
+                                {
+                                    property: 'revision',
+                                    header: 'Revision',
+                                    size: 'xsmall',
+                                    render: (datum: any) => <Text>{datum.revision || '-'}</Text>
+                                },
+                                {
+                                    property: 'version',
+                                    header: 'Version',
+                                    size: 'xsmall'
+                                },
+                                {
+                                    property: 'app_version',
+                                    header: 'App Version',
+                                    size: 'xsmall'
+                                },
+                                {
+                                    property: 'status',
+                                    header: 'Status',
+                                    size: 'xsmall',
+                                    render: (datum: any) => {
+                                        const status = datum.status.toLowerCase();
+                                        let color = 'status-unknown';
+                                        if (status === 'deployed') color = 'status-ok';
+                                        else if (status === 'failed') color = 'status-critical';
+                                        else if (status.includes('pending')) color = 'status-warning';
+
+                                        return (
+                                            <Box direction="row" align="center" gap="xsmall">
+                                                <Box
+                                                    width="8px"
+                                                    height="8px"
+                                                    round="full"
+                                                    background={color}
+                                                />
+                                                <Text size="small">{datum.status}</Text>
+                                            </Box>
+                                        );
+                                    }
+                                },
+                                {
+                                    property: 'updated',
+                                    header: 'Updated',
+                                    size: 'small',
+                                    render: (datum: any) => {
+                                        if (!datum.updated) return <Text>-</Text>;
+                                        try {
+                                            const updated = new Date(datum.updated);
+                                            const now = new Date();
+                                            const diffMs = now.getTime() - updated.getTime();
+                                            const diffMins = Math.floor(diffMs / 60000);
+                                            const diffHours = Math.floor(diffMins / 60);
+                                            const diffDays = Math.floor(diffHours / 24);
+
+                                            if (diffDays > 0) return <Text>{diffDays}d ago</Text>;
+                                            if (diffHours > 0) return <Text>{diffHours}h ago</Text>;
+                                            if (diffMins > 0) return <Text>{diffMins}m ago</Text>;
+                                            return <Text>Just now</Text>;
+                                        } catch {
+                                            return <Text>-</Text>;
+                                        }
+                                    }
+                                },
+                                {
+                                    property: 'actions',
+                                    header: 'Actions',
+                                    size: 'xsmall',
+                                    render: (datum: any) => (
+                                        <Box direction="row" gap="xsmall">
+                                            <Button
+                                                icon={<Upgrade size="small" />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Pre-fill install form for upgrade
+                                                    setInstallForm({
+                                                        ...installForm,
+                                                        name: datum.name,
+                                                        chart: datum.chart,
+                                                        namespace: datum.namespace,
+                                                        version: datum.version
+                                                    });
+                                                    setShowInstall(true);
+                                                }}
+                                                tip="Upgrade"
+                                                plain
+                                                hoverIndicator
+                                            />
+                                            <Button
+                                                icon={<Trash size="small" color="status-critical" />}
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    if (confirm(`Are you sure you want to uninstall ${datum.name} from ${datum.namespace}?`)) {
+                                                        try {
+                                                            await chartsApi.delete(datum.name, datum.namespace);
+                                                            notify.normal(`Helm release ${datum.name} deleted successfully`);
+                                                            fetchCharts();
+                                                        } catch (error: any) {
+                                                            notify.critical(`Failed to delete release: ${error.message || 'Unknown error'}`);
+                                                        }
+                                                    }
+                                                }}
+                                                tip="Uninstall"
+                                                plain
+                                                hoverIndicator
+                                            />
+                                        </Box>
+                                    )
+                                }
+                            ]}
+                            background={{
+                                header: 'light-2',
+                                body: ['white', 'light-1']
+                            }}
+                            border={{
+                                body: {
+                                    color: 'border',
+                                    side: 'bottom'
+                                }
+                            }}
+                            pad="small"
+                            pin
+                            sortable
+                            paginate={{
+                                size: 'small',
+                                step: 10,
+                            }}
+                        />
+                    );
+                })()}
+            </Box>
+
+            {/* Install Chart Modal */}
+            {showInstall && (
+                <Layer
+                    onEsc={() => setShowInstall(false)}
+                    onClickOutside={() => setShowInstall(false)}
+                >
+                    <Box pad="large" gap="medium" width="large">
+                        <Heading level="3" margin="none">Install Helm Chart</Heading>
+
+                        <FormField label="Release Name" required>
+                            <TextInput
+                                placeholder="my-release"
+                                value={installForm.name}
+                                onChange={e => setInstallForm({ ...installForm, name: e.target.value })}
+                            />
+                        </FormField>
+
+                        <FormField label="Chart" required>
+                            <TextInput
+                                placeholder="bitnami/nginx or https://example.com/chart.tgz"
+                                value={installForm.chart}
+                                onChange={e => setInstallForm({ ...installForm, chart: e.target.value })}
+                            />
+                        </FormField>
+
+                        <FormField label="Namespace">
+                            <TextInput
+                                placeholder="default"
+                                value={installForm.namespace}
+                                onChange={e => setInstallForm({ ...installForm, namespace: e.target.value })}
+                            />
+                        </FormField>
+
+                        <Box border={{ side: 'top', color: 'border' }} pad={{ top: 'small' }} gap="small">
+                            <Text weight="bold" size="small">Repository (Optional)</Text>
+
+                            <FormField label="Repository Name">
+                                <TextInput
+                                    placeholder="bitnami"
+                                    value={installForm.repo_name}
+                                    onChange={e => setInstallForm({ ...installForm, repo_name: e.target.value })}
+                                />
+                            </FormField>
+
+                            <FormField label="Repository URL">
+                                <TextInput
+                                    placeholder="https://charts.bitnami.com/bitnami"
+                                    value={installForm.repo_url}
+                                    onChange={e => setInstallForm({ ...installForm, repo_url: e.target.value })}
+                                />
+                            </FormField>
+                        </Box>
+
+                        <FormField label="Version (Optional)">
+                            <TextInput
+                                placeholder="1.0.0"
+                                value={installForm.version}
+                                onChange={e => setInstallForm({ ...installForm, version: e.target.value })}
+                            />
+                        </FormField>
+
+                        <CheckBox
+                            label="Create namespace if it doesn't exist"
+                            checked={installForm.create_namespace}
+                            onChange={e => setInstallForm({ ...installForm, create_namespace: e.target.checked })}
+                        />
+
+                        <Box direction="row" gap="medium" justify="end">
+                            <Button label="Cancel" onClick={() => setShowInstall(false)} />
+                            <Button label="Install" primary onClick={handleInstall} />
+                        </Box>
+                    </Box>
+                </Layer>
+            )}
         </Box>
     );
 };
@@ -862,6 +1370,7 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
     const [showDescribe, setShowDescribe] = useState(false);
     const [describeContent, setDescribeContent] = useState('');
     const [describeTitle, setDescribeTitle] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     const resourceTypes = [
         { label: 'Pods', value: 'pod' },
@@ -1087,20 +1596,50 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
                 ))}
             </Box>
 
+            {/* Search Filter */}
+            <Box width="medium">
+                <TextInput
+                    placeholder="Search resources..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    icon={<FormNext />}
+                />
+            </Box>
+
             {/* Resources Table */}
             <Box>
                 {loading ? (
                     <Box align="center" pad="large">
                         <Text>Loading {resourceType}s...</Text>
                     </Box>
-                ) : resources.length === 0 ? (
+                ) : resources.filter(resource => {
+                    if (!searchQuery) return true;
+                    const query = searchQuery.toLowerCase();
+                    return (
+                        resource.name?.toLowerCase().includes(query) ||
+                        resource.namespace?.toLowerCase().includes(query) ||
+                        resource.status?.phase?.toLowerCase().includes(query) ||
+                        (typeof resource.status === 'string' && resource.status.toLowerCase().includes(query))
+                    );
+                }).length === 0 ? (
                     <Box align="center" pad="large">
-                        <Text color="text-weak">No {resourceType}s found</Text>
+                        <Text color="text-weak">
+                            {searchQuery ? `No ${resourceType}s match your search` : `No ${resourceType}s found`}
+                        </Text>
                     </Box>
                 ) : (
                     <DataTable
-                        primaryKey="id"
-                        data={resources}
+                        primaryKey="name"
+                        data={resources.filter(resource => {
+                            if (!searchQuery) return true;
+                            const query = searchQuery.toLowerCase();
+                            return (
+                                resource.name?.toLowerCase().includes(query) ||
+                                resource.namespace?.toLowerCase().includes(query) ||
+                                resource.status?.phase?.toLowerCase().includes(query) ||
+                                (typeof resource.status === 'string' && resource.status.toLowerCase().includes(query))
+                            );
+                        })}
                         columns={getColumns()}
                         background={{
                             header: 'light-2',
@@ -1370,7 +1909,7 @@ export default function Home() {
             case 'apps-resources':
                 return <KubernetesResources domain={domain} />;
             case 'apps-charts':
-                return <ContentPlaceholder title="Helm Charts" description="Manage installed Helm releases and repositories." />;
+                return <HelmCharts />;
             case 'endpoints-services':
                 return <VirtualServices domain={domain} />;
             case 'endpoints-models':
@@ -1405,7 +1944,7 @@ export default function Home() {
                     <Heading level="3" margin="none">HPE AI Essentials Dashboard</Heading>
                     <Box direction="row" gap="small" align="center">
                         <Text size="small" color="text-weak">Cluster:</Text>
-                        <Text weight="bold">{domain.toUpperCase()}</Text>
+                        <Anchor href={`https://home.${domain}`} target="_blank" weight="bold">{domain.toUpperCase()}</Anchor>
                     </Box>
                 </Box>
 

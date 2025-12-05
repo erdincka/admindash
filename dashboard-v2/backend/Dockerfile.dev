@@ -2,7 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies and helm
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Helm
+RUN curl -fsSL https://get.helm.sh/helm-v3.13.3-linux-amd64.tar.gz | tar -xz && \
+    mv linux-amd64/helm /usr/local/bin/helm && \
+    rm -rf linux-amd64 && \
+    helm version
+
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
