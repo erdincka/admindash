@@ -40,6 +40,10 @@ export const resourcesApi = {
         return apiClient.get<ResourceDependencies>(`/resources/${kind}/${namespace}/${name}/dependencies`)
     },
 
+    getEvents: async (kind: string, namespace: string, name: string): Promise<ApiResponse<ResourceEvent[]>> => {
+        return apiClient.get<ResourceEvent[]>(`/resources/${kind}/${namespace}/${name}/events`)
+    },
+
     applyYaml: async (yaml: string): Promise<ApiResponse<YamlApplyResult>> => {
         return apiClient.post<YamlApplyResult>('/resources/apply', { yaml })
     }
@@ -58,6 +62,16 @@ export interface ResourceDependencies {
     upstream: ResourceDependency[]
     downstream: ResourceDependency[]
     related: ResourceDependency[]
+}
+
+export interface ResourceEvent {
+    type: string
+    reason: string
+    message: string
+    count: number
+    first_timestamp: string
+    last_timestamp: string
+    source?: string
 }
 
 export interface YamlApplyResult {

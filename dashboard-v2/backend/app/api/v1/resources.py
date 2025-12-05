@@ -346,6 +346,59 @@ async def get_resource_dependencies(
         logging.getLogger(__name__).error(f"Error getting dependencies: {e}", exc_info=True)
         raise K8sApiError(f"Error resolving dependencies: {str(e)}")
 
+@router.get("/{kind}/{namespace}/{name}/events", response_model=ApiResponse[List[dict]])
+async def get_resource_events(
+    kind: str,
+    namespace: str,
+    name: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get events for a specific resource"""
+    from kubernetes_asyncio import client
+    from app.core.errors import K8sApiError, ValidationError
+    
+    try:
+        await K8sClient.initialize()
+        async with client.ApiClient() as api:
+            v1 = client.CoreV1Api(api)
+            # Fetch all events in namespace to safely filter by object
+            events_list = await v1.list_namespaced_event(namespace)
+            
+            # Filter
+            related_events = []
+            target_kind = kind.lower()
+            
+            for event in events_list.items:
+                obj = event.involved_object
+                # Check match. obj.kind is usually CamelCase (Pod).
+                if obj and obj.name == name and obj.kind and obj.kind.lower() == target_kind:
+                    related_events.append({
+                        'type': event.type,
+                        'reason': event.reason,
+                        'message': event.message,
+                        'count': event.count,
+                        'first_timestamp': event.first_timestamp,
+                        'last_timestamp': event.last_timestamp or event.event_time or event.first_timestamp,
+                        'source': event.source.component if event.source else None
+                    })
+            
+            # Sort by last_timestamp desc
+            related_events.sort(
+                key=lambda x: x['last_timestamp'] or x['first_timestamp'] or datetime.min, 
+                reverse=True
+            )
+            
+            return ApiResponse(
+                success=True,
+                data=related_events,
+                timestamp=datetime.utcnow()
+            )
+            
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error getting events: {e}", exc_info=True)
+        raise K8sApiError(f"Failed to get events: {str(e)}")
+
 @router.get("/{kind}/{namespace}/{name}/describe", response_model=ApiResponse[str])
 async def describe_resource(
     kind: str,

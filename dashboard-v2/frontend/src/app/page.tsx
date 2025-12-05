@@ -64,12 +64,13 @@ import {
     Trash,
     Add,
     Refresh,
-    ShareOption
+    ShareOption,
+    Clock
 } from 'grommet-icons';
 import { notify } from '@/lib/utils/notifications';
 import { deploymentsApi, namespacesApi } from '@/lib/api/deployments';
 import { DeploymentCreate } from '@/types/deployment';
-import { resourcesApi, YamlApplyResult, ResourceDependencies } from '@/lib/api/resources';
+import { resourcesApi, YamlApplyResult, ResourceDependencies, ResourceEvent } from '@/lib/api/resources';
 import { chartsApi } from '@/lib/api/charts';
 import dynamic from 'next/dynamic';
 
@@ -1375,6 +1376,9 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
     const [showDependencies, setShowDependencies] = useState(false);
     const [dependenciesData, setDependenciesData] = useState<ResourceDependencies | null>(null);
     const [dependenciesTitle, setDependenciesTitle] = useState('');
+    const [showEvents, setShowEvents] = useState(false);
+    const [eventsData, setEventsData] = useState<ResourceEvent[]>([]);
+    const [eventsTitle, setEventsTitle] = useState('');
 
     const resourceTypes = [
         { label: 'Pods', value: 'pod' },
@@ -1450,6 +1454,19 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
             }
         } catch (error: any) {
             notify.critical(`Failed to describe resource: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleEvents = async (resource: any) => {
+        try {
+            const res = await resourcesApi.getEvents(resourceType, resource.namespace, resource.name);
+            if (res.data) {
+                setEventsData(res.data);
+                setEventsTitle(`Events: ${resourceType}/${resource.namespace}/${resource.name}`);
+                setShowEvents(true);
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to fetch events: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -1577,6 +1594,16 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
                             hoverIndicator
                         />
                     )}
+                    <Button
+                        icon={<Clock size="small" />}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleEvents(datum);
+                        }}
+                        tip="Events"
+                        plain
+                        hoverIndicator
+                    />
                     <Button
                         icon={<ShareOption size="small" />}
                         onClick={(e) => {
@@ -1848,6 +1875,52 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
                                 }
                             </Box>
                         </Grid>
+                    </Box>
+                </Layer>
+            )}
+
+            {/* Events Modal */}
+            {showEvents && (
+                <Layer
+                    onEsc={() => setShowEvents(false)}
+                    onClickOutside={() => setShowEvents(false)}
+                    margin="medium"
+                >
+                    <Box background="white" pad="medium" gap="small" width="large" height="medium" overflow="auto">
+                        <Box direction="row" justify="between" align="center">
+                            <Text weight="bold">{eventsTitle}</Text>
+                            <Button icon={<Close />} onClick={() => setShowEvents(false)} plain />
+                        </Box>
+
+                        {eventsData.length === 0 ? (
+                            <Box align="center" pad="large">
+                                <Text color="text-weak">No events found</Text>
+                            </Box>
+                        ) : (
+                            <DataTable
+                                data={eventsData}
+                                columns={[
+                                    { property: 'type', header: 'Type', render: (datum) => <Text color={datum.type === 'Warning' ? 'status-warning' : 'status-ok'}>{datum.type}</Text> },
+                                    { property: 'reason', header: 'Reason', size: 'small' },
+                                    { property: 'message', header: 'Message', size: 'medium', render: (datum) => <Text truncate>{datum.message}</Text> },
+                                    { property: 'count', header: 'Count', size: 'xsmall', align: 'end' },
+                                    {
+                                        property: 'last_timestamp',
+                                        header: 'Age',
+                                        size: 'small',
+                                        render: (datum) => {
+                                            const date = new Date(datum.last_timestamp);
+                                            const now = new Date();
+                                            const diff = Math.floor((now.getTime() - date.getTime()) / 60000);
+                                            if (diff < 60) return <Text>{diff}m</Text>;
+                                            const hours = Math.floor(diff / 60);
+                                            if (hours < 24) return <Text>{hours}h</Text>;
+                                            return <Text>{Math.floor(hours / 24)}d</Text>;
+                                        }
+                                    }
+                                ]}
+                            />
+                        )}
                     </Box>
                 </Layer>
             )}
