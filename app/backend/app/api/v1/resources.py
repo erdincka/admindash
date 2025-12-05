@@ -186,13 +186,13 @@ async def get_resource_dependencies(
                 # Fallback for other kinds or if lookup failed (should be caught by API exception usually)
                 return ApiResponse(success=True, data=dependencies, timestamp=datetime.utcnow())
 
-            # Convert to dict for easier access
-            res_dict = resource.to_dict()
+            # Convert to dict for easier access (use sanitize to ensure camelCase keys which the logic below expects)
+            res_dict = api.sanitize_for_serialization(resource)
             metadata = res_dict.get('metadata', {})
             spec = res_dict.get('spec', {})
             
             # 1. UPSTREAM: Check OwnerReferences
-            owner_refs = metadata.get('ownerReferences', [])
+            owner_refs = metadata.get('ownerReferences') or []
             for ref in owner_refs:
                 dependencies['upstream'].append({
                     'kind': ref['kind'].lower(),
@@ -264,7 +264,27 @@ async def get_resource_dependencies(
 
             # POD -> VOLUMES/SECRETS/CONFIGMAPS (Related)
             elif kind == 'pod':
-                volumes = spec.get('volumes', [])
+                # Check ServiceAccount
+                sa_name = spec.get('serviceAccountName')
+                if sa_name and sa_name != 'default':
+                    dependencies['related'].append({
+                        'kind': 'serviceaccount',
+                        'name': sa_name,
+                        'namespace': namespace,
+                        'relation': 'serviceAccount'
+                    })
+                
+                # Check ImagePullSecrets
+                pull_secrets = spec.get('imagePullSecrets') or []
+                for secret in pull_secrets:
+                    if secret.get('name'):
+                        dependencies['related'].append({
+                            'kind': 'secret',
+                            'name': secret['name'],
+                            'namespace': namespace,
+                            'relation': 'imagePullSecret'
+                        })
+                volumes = spec.get('volumes') or []
                 for vol in volumes:
                     if 'persistentVolumeClaim' in vol and vol['persistentVolumeClaim']:
                         claim_name = vol['persistentVolumeClaim'].get('claimName')
@@ -294,10 +314,31 @@ async def get_resource_dependencies(
                                 'relation': 'volume'
                             })
                 
-                # Check env vars for secrets/configmaps
-                containers = spec.get('containers', [])
+                # Check env vars for secrets/configmaps (including initContainers)
+                containers = (spec.get('containers') or []) + (spec.get('initContainers') or [])
                 for c in containers:
-                    for env in c.get('env', []):
+                    # Check envFrom
+                    for env_from in (c.get('envFrom') or []):
+                        if 'configMapRef' in env_from and env_from['configMapRef']:
+                            cm_name = env_from['configMapRef'].get('name')
+                            if cm_name:
+                                dependencies['related'].append({
+                                    'kind': 'configmap',
+                                    'name': cm_name,
+                                    'namespace': namespace,
+                                    'relation': 'envFrom'
+                                })
+                        elif 'secretRef' in env_from and env_from['secretRef']:
+                            sec_name = env_from['secretRef'].get('name')
+                            if sec_name:
+                                dependencies['related'].append({
+                                    'kind': 'secret',
+                                    'name': sec_name,
+                                    'namespace': namespace,
+                                    'relation': 'envFrom'
+                                })
+
+                    for env in (c.get('env') or []):
                          if 'valueFrom' in env and env['valueFrom']:
                              vf = env['valueFrom']
                              if 'configMapKeyRef' in vf and vf['configMapKeyRef']:
@@ -361,13 +402,18 @@ async def get_resource_events(
         await K8sClient.initialize()
         async with client.ApiClient() as api:
             v1 = client.CoreV1Api(api)
-            # Fetch all events in namespace to safely filter by object
-            events_list = await v1.list_namespaced_event(namespace)
+            # Fetch events for this specific resource using field_selector
+            field_selector = f"involvedObject.name={name}"
+            events_list = await v1.list_namespaced_event(namespace, field_selector=field_selector)
             
             # Filter
             related_events = []
             target_kind = kind.lower()
             
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Found {len(events_list.items)} events for {kind}/{name} in {namespace}")
+
             for event in events_list.items:
                 obj = event.involved_object
                 # Check match. obj.kind is usually CamelCase (Pod).
@@ -381,6 +427,8 @@ async def get_resource_events(
                         'last_timestamp': event.last_timestamp or event.event_time or event.first_timestamp,
                         'source': event.source.component if event.source else None
                     })
+                else:
+                    logger.debug(f"Skipping event {event.metadata.name}: obj.name={obj.name if obj else 'None'}, obj.kind={obj.kind if obj else 'None'}")
             
             # Sort by last_timestamp desc
             related_events.sort(

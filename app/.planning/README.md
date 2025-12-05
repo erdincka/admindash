@@ -37,7 +37,7 @@ A modern, production-ready Kubernetes dashboard with:
 ## 🏗️ Project Structure Preview
 
 ```
-dashboard-v2/
+app/
 ├── frontend/              # Next.js + React + Grommet
 │   ├── src/
 │   │   ├── app/          # Next.js App Router

@@ -1822,14 +1822,17 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
                     onEsc={() => setShowDependencies(false)}
                     onClickOutside={() => setShowDependencies(false)}
                     margin="medium"
+                    animation="fadeIn"
+                    animate
+                    full="horizontal"
                 >
-                    <Box background="white" pad="medium" gap="small" width="large" height="medium" overflow="auto">
+                    <Box background="white" pad="medium" gap="small" fill overflow="auto">
                         <Box direction="row" justify="between" align="center">
                             <Text weight="bold">{dependenciesTitle}</Text>
                             <Button icon={<Close />} onClick={() => setShowDependencies(false)} plain />
                         </Box>
 
-                        <Grid columns={['1/3', '1/3', '1/3']} gap="medium">
+                        <Grid columns={{ "count": "fit", "size": ["1/3", "1/3", "1/3"] }} fill gap="medium" align="between">
                             <Box gap="small">
                                 <Heading level={4}>Upstream (Parents)</Heading>
                                 {dependenciesData.upstream.length === 0 ? <Text color="text-weak">None</Text> :

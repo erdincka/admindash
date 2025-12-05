@@ -23,7 +23,7 @@ Modern, full-stack Kubernetes dashboard for HPE AI Essentials platform.
 
 1. **Start Tilt:**
    ```bash
-   cd dashboard-v2
+   cd app
    tilt up
    ```
 
@@ -41,7 +41,7 @@ Modern, full-stack Kubernetes dashboard for HPE AI Essentials platform.
 ## Project Structure
 
 ```
-dashboard-v2/
+app/
 ├── frontend/          # Next.js application
 ├── backend/           # FastAPI application
 ├── k8s/              # Kubernetes manifests

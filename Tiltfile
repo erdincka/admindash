@@ -15,11 +15,11 @@ k8s_resource('redis', labels=['infrastructure'])
 
 # Backend - use custom_build to avoid registry issues
 docker_build('erdincka/dashboard-backend-dev',
-    context='./backend',
-    dockerfile='./backend/Dockerfile.dev',
+    context='./app/backend',
+    dockerfile='./app/backend/Dockerfile.dev',
     build_args={'platform': 'linux/amd64'},
     live_update=[
-        sync('./backend/app', '/app/app'),
+        sync('./app/backend/app', '/app/app'),
         run(
             'pip install -r requirements.txt',
             trigger='./backend/requirements.txt'
@@ -43,12 +43,11 @@ k8s_resource(
 
 # Frontend - use custom_build to avoid registry issues
 docker_build('erdincka/dashboard-frontend-dev',
-    dockerfile='./frontend/Dockerfile.dev',
-    context='./frontend',
+    dockerfile='./app/frontend/Dockerfile.dev',
+    context='./app/frontend',
     build_args={ 'platform': 'linux/amd64' },
     live_update=[
-        sync('./frontend/src', '/app/src'),
-        sync('./frontend/public', '/app/public'),
+        sync('./app/frontend/src', '/app/src'),
         run(
             'npm install',
             trigger=['./frontend/package.json', './frontend/package-lock.json']

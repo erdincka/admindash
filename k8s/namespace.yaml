@@ -3,5 +3,5 @@ kind: Namespace
 metadata:
   name: dashboard-dev
   labels:
-    app: dashboard-v2
+    app: dashboard
     environment: development

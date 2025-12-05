@@ -26,6 +26,13 @@ spec:
             - "256mb"
             - --maxmemory-policy
             - allkeys-lru
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "512m"
+            requests:
+              memory: "256Mi"
+              cpu: "256m"
           livenessProbe:
             exec:
               command:

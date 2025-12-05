@@ -48,7 +48,7 @@ Migrate the "Apps" tab functionality from Streamlit to a modern React + FastAPI 
 ## Project Structure
 
 ```
-dashboard-v2/
+app/
 ├── frontend/                      # Next.js application
 │   ├── src/
 │   │   ├── app/                   # Next.js App Router
@@ -151,7 +151,7 @@ dashboard-v2/
 │       └── overlays/
 │
 ├── helm/                          # Helm chart
-│   └── dashboard-v2/
+│   └── app/
 │       ├── Chart.yaml
 │       ├── values.yaml
 │       └── templates/
