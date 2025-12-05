@@ -1,11 +1,11 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "admindash.serviceAccountName" . }}-rbac
+  name: {{ include "kubik.serviceAccountName" . }}-rbac
 subjects:
   - kind: ServiceAccount
     # Reference to upper's `metadata.name`
-    name: {{ include "admindash.serviceAccountName" . }}
+    name: {{ include "kubik.serviceAccountName" . }}
     # Reference to upper's `metadata.namespace`
     namespace: {{ .Release.Namespace }}
 roleRef:

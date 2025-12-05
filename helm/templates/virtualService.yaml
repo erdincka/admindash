@@ -4,7 +4,7 @@ metadata:
   name: {{ printf "%s-%s-virtual-service" .Release.Name .Chart.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "admindash.labels" . | nindent 4 }}
+    {{- include "kubik.labels" . | nindent 4 }}
 spec:
   gateways:
     - {{ .Values.ezua.virtualService.istioGateway | required "\nValid .Values.ezua.virtualService.istioGateway is required !\n" }}
@@ -20,6 +20,6 @@ spec:
         uri: /
       route:
         - destination:
-            host: {{ include "admindash.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
             port:
               number: {{ .Values.service.port }}

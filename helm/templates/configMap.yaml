@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "admindash.fullname" . }}-files
+  name: {{ include "kubik.fullname" . }}-files
   labels:
-    {{- include "admindash.labels" . | nindent 4 }}
+    {{- include "kubik.labels" . | nindent 4 }}
 data:
 {{- range .Values.appFiles }}
   {{ . }}: |-

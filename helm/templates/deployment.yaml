@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "admindash.fullname" . }}
+  name: {{ include "kubik.fullname" . }}
   labels:
-    {{ include "admindash.labels" . | nindent 4 }}
+    {{ include "kubik.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "admindash.selectorLabels" . | nindent 6 }}
+      {{- include "kubik.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "admindash.labels" . | nindent 8 }}
+        {{- include "kubik.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,7 +27,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "admindash.serviceAccountName" . }}
+      serviceAccountName: {{ include "kubik.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -41,9 +41,9 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           volumeMounts:
-            - name: {{ include "admindash.fullname" . }}-dir
+            - name: {{ include "kubik.fullname" . }}-dir
               mountPath: /app
-            - name: {{ include "admindash.fullname" . }}-files
+            - name: {{ include "kubik.fullname" . }}-files
               mountPath: /configmap
               readOnly: true
           command: # Override entrypoint
@@ -70,8 +70,8 @@ spec:
       {{- end }}
 
       volumes:
-        - name: {{ include "admindash.fullname" . }}-dir
+        - name: {{ include "kubik.fullname" . }}-dir
           emptyDir: {}
-        - name: {{ include "admindash.fullname" . }}-files
+        - name: {{ include "kubik.fullname" . }}-files
           configMap:
-            name: {{ include "admindash.fullname" . }}-files
+            name: {{ include "kubik.fullname" . }}-files

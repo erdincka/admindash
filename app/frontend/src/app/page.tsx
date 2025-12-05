@@ -1083,7 +1083,6 @@ const HelmCharts = () => {
                         icon={<Add />}
                         // onClick={() => setShowInstall(true)}
                         tip="Not implemented"
-                    // disabled
                     />
                 </Box>
             </Box>

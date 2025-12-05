@@ -4,7 +4,7 @@ kind: ConfigMap
 metadata:
   name: app-files
   labels:
-    {{- include "admindash.labels" . | nindent 4 }}
+    {{- include "kubik.labels" . | nindent 4 }}
 data:
   appsh: |-
 {{ .Files.Get "app.sh" | indent 4 }}
