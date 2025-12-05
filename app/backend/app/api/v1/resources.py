@@ -8,7 +8,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-SUPPORTED_KINDS = ['pod', 'deployment', 'service', 'configmap', 'secret', 'persistentvolumeclaim', 'persistentvolume', 'statefulset', 'daemonset', 'virtualservice']
+SUPPORTED_KINDS = ['pod', 'deployment', 'service', 'configmap', 'secret', 'persistentvolumeclaim', 'persistentvolume', 'statefulset', 'daemonset', 'virtualservice', 'replicaset']
 
 @router.get("/{kind}", response_model=ApiResponse[List[dict]])
 async def list_resources(
@@ -496,6 +496,9 @@ async def describe_resource(
             elif kind == 'daemonset':
                 api_instance = client.AppsV1Api(api)
                 resource = await api_instance.read_namespaced_daemon_set(name, namespace)
+            elif kind == 'replicaset':
+                api_instance = client.AppsV1Api(api)
+                resource = await api_instance.read_namespaced_replica_set(name, namespace)
             elif kind == 'virtualservice':
                 api_instance = client.CustomObjectsApi(api)
                 # Try v1beta1 first, then v1alpha3
@@ -738,6 +741,8 @@ async def delete_resource(
                 await client.AppsV1Api(api).delete_namespaced_stateful_set(name, namespace)
             elif kind == 'daemonset':
                 await client.AppsV1Api(api).delete_namespaced_daemon_set(name, namespace)
+            elif kind == 'replicaset':
+                await client.AppsV1Api(api).delete_namespaced_replica_set(name, namespace)
             elif kind == 'virtualservice':
                 custom_api = client.CustomObjectsApi(api)
                 # Try v1beta1 first

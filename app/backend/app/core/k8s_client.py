@@ -95,6 +95,12 @@ class K8sClient:
                         ret = await apps_v1.list_namespaced_daemon_set(namespace)
                     else:
                         ret = await apps_v1.list_daemon_set_for_all_namespaces()
+                elif kind.lower() == 'replicaset':
+                    apps_v1 = client.AppsV1Api(api)
+                    if namespace:
+                        ret = await apps_v1.list_namespaced_replica_set(namespace)
+                    else:
+                        ret = await apps_v1.list_replica_set_for_all_namespaces()
                 else:
                     raise K8sApiError(f"Unsupported resource kind: {kind}")
                 

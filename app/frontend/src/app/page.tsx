@@ -17,7 +17,6 @@ import {
     AccordionPanel,
     Card,
     CardBody,
-    CardHeader,
     Meter,
     Stack,
     Menu,
@@ -25,13 +24,11 @@ import {
     Tab,
     FileInput,
     TextArea,
-    Form,
     FormField,
     TextInput,
     CheckBox,
     Select,
     Layer,
-    DataView,
     DataTable,
     Anchor
 } from 'grommet';
@@ -1084,9 +1081,9 @@ const HelmCharts = () => {
                     />
                     <Button
                         icon={<Add />}
-                        label="Install Chart"
-                        primary
-                        onClick={() => setShowInstall(true)}
+                        // onClick={() => setShowInstall(true)}
+                        tip="Not implemented"
+                    // disabled
                     />
                 </Box>
             </Box>
@@ -1214,24 +1211,6 @@ const HelmCharts = () => {
                                     size: 'xsmall',
                                     render: (datum: any) => (
                                         <Box direction="row" gap="xsmall">
-                                            <Button
-                                                icon={<Upgrade size="small" />}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Pre-fill install form for upgrade
-                                                    setInstallForm({
-                                                        ...installForm,
-                                                        name: datum.name,
-                                                        chart: datum.chart,
-                                                        namespace: datum.namespace,
-                                                        version: datum.version
-                                                    });
-                                                    setShowInstall(true);
-                                                }}
-                                                tip="Upgrade"
-                                                plain
-                                                hoverIndicator
-                                            />
                                             <Button
                                                 icon={<Trash size="small" color="status-critical" />}
                                                 onClick={async (e) => {
@@ -1389,7 +1368,8 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
         { label: 'ConfigMaps', value: 'configmap' },
         { label: 'Secrets', value: 'secret' },
         { label: 'PVCs', value: 'persistentvolumeclaim' },
-        { label: 'PVs', value: 'persistentvolume' }
+        { label: 'PVs', value: 'persistentvolume' },
+        { label: 'ReplicaSets', value: 'replicaset' }
     ];
 
     useEffect(() => {
@@ -1531,7 +1511,7 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
             });
         }
 
-        if (resourceType === 'deployment' || resourceType === 'statefulset') {
+        if (resourceType === 'deployment' || resourceType === 'statefulset' || resourceType === 'replicaset') {
             baseColumns.push({
                 property: 'status',
                 header: 'Ready',
