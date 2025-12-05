@@ -135,6 +135,217 @@ async def get_pod_logs(
         logger.error(f"Error getting pod logs: {e}", exc_info=True)
         raise K8sApiError(f"Failed to get pod logs: {str(e)}")
 
+
+def match_labels(resource_labels: dict, selector: dict) -> bool:
+    """Check if resource matches selector"""
+    if not selector:
+        return False
+    for k, v in selector.items():
+        if resource_labels.get(k) != v:
+            return False
+    return True
+
+@router.get("/{kind}/{namespace}/{name}/dependencies", response_model=ApiResponse[dict])
+async def get_resource_dependencies(
+    kind: str,
+    namespace: str,
+    name: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get resource dependencies (upstream/downstream/related)"""
+    from kubernetes_asyncio import client
+    from app.core.errors import K8sApiError, ValidationError
+    
+    if kind.lower() not in SUPPORTED_KINDS:
+        raise ValidationError(f"Unsupported resource kind: {kind}")
+        
+    try:
+        await K8sClient.initialize()
+        
+        dependencies = {
+            'upstream': [],
+            'downstream': [],
+            'related': []
+        }
+        
+        async with client.ApiClient() as api:
+            # First, get the resource itself to check its spec/metadata
+            resource = None
+            if kind == 'pod':
+                resource = await client.CoreV1Api(api).read_namespaced_pod(name, namespace)
+            elif kind == 'deployment':
+                resource = await client.AppsV1Api(api).read_namespaced_deployment(name, namespace)
+            elif kind == 'service':
+                resource = await client.CoreV1Api(api).read_namespaced_service(name, namespace)
+            elif kind == 'replicaset':
+                resource = await client.AppsV1Api(api).read_namespaced_replica_set(name, namespace)
+            elif kind == 'persistentvolumeclaim':
+                resource = await client.CoreV1Api(api).read_namespaced_persistent_volume_claim(name, namespace)
+            
+            if not resource:
+                # Fallback for other kinds or if lookup failed (should be caught by API exception usually)
+                return ApiResponse(success=True, data=dependencies, timestamp=datetime.utcnow())
+
+            # Convert to dict for easier access
+            res_dict = resource.to_dict()
+            metadata = res_dict.get('metadata', {})
+            spec = res_dict.get('spec', {})
+            
+            # 1. UPSTREAM: Check OwnerReferences
+            owner_refs = metadata.get('ownerReferences', [])
+            for ref in owner_refs:
+                dependencies['upstream'].append({
+                    'kind': ref['kind'].lower(),
+                    'name': ref['name'],
+                    'namespace': namespace # Owners are usually in same namespace
+                })
+                
+            # 2. Kind-specific logic
+            
+            # SERVICE -> PODS (Downstream)
+            if kind == 'service':
+                selector = spec.get('selector')
+                if selector:
+                    # Find pods matching selector
+                    all_pods = await client.CoreV1Api(api).list_namespaced_pod(namespace)
+                    for pod in all_pods.items:
+                        pod_labels = pod.metadata.labels or {}
+                        if match_labels(pod_labels, selector):
+                            dependencies['downstream'].append({
+                                'kind': 'pod',
+                                'name': pod.metadata.name,
+                                'namespace': namespace,
+                                'status': pod.status.phase
+                            })
+
+            # DEPLOYMENT -> REPLICASETS (Downstream)
+            elif kind == 'deployment':
+                # Find matching ReplicaSets
+                selector = spec.get('selector', {}).get('matchLabels')
+                if selector:
+                    all_rs = await client.AppsV1Api(api).list_namespaced_replica_set(namespace)
+                    for rs in all_rs.items:
+                        rs_labels = rs.metadata.labels or {}
+                        # Check owner ref pointing to this deployment (safer than just selector for RS)
+                        is_owned = False
+                        for ref in (rs.metadata.owner_references or []):
+                            if ref.kind == 'Deployment' and ref.name == name:
+                                is_owned = True
+                                break
+                        
+                        if is_owned:
+                             dependencies['downstream'].append({
+                                'kind': 'replicaset',
+                                'name': rs.metadata.name,
+                                'namespace': namespace,
+                                'replicas': f"{rs.status.ready_replicas or 0}/{rs.status.replicas}"
+                            })
+
+            # REPLICASET -> PODS (Downstream)
+            elif kind == 'replicaset':
+                 # Find matching Pods
+                selector = spec.get('selector', {}).get('matchLabels')
+                if selector:
+                     all_pods = await client.CoreV1Api(api).list_namespaced_pod(namespace)
+                     for pod in all_pods.items:
+                        # Check owner ref pointing to this RS
+                        is_owned = False
+                        for ref in (pod.metadata.owner_references or []):
+                            if ref.kind == 'ReplicaSet' and ref.name == name:
+                                is_owned = True
+                                break
+                        if is_owned:
+                             dependencies['downstream'].append({
+                                'kind': 'pod',
+                                'name': pod.metadata.name,
+                                'namespace': namespace,
+                                'status': pod.status.phase
+                            })
+
+            # POD -> VOLUMES/SECRETS/CONFIGMAPS (Related)
+            elif kind == 'pod':
+                volumes = spec.get('volumes', [])
+                for vol in volumes:
+                    if 'persistentVolumeClaim' in vol and vol['persistentVolumeClaim']:
+                        claim_name = vol['persistentVolumeClaim'].get('claimName')
+                        if claim_name:
+                            dependencies['related'].append({
+                                'kind': 'persistentvolumeclaim',
+                                'name': claim_name,
+                                'namespace': namespace,
+                                'relation': 'volume'
+                            })
+                    elif 'configMap' in vol and vol['configMap']:
+                         cm_name = vol['configMap'].get('name')
+                         if cm_name:
+                             dependencies['related'].append({
+                                'kind': 'configmap',
+                                'name': cm_name,
+                                'namespace': namespace,
+                                'relation': 'volume'
+                            })
+                    elif 'secret' in vol and vol['secret']:
+                         sec_name = vol['secret'].get('secretName')
+                         if sec_name:
+                             dependencies['related'].append({
+                                'kind': 'secret',
+                                'name': sec_name,
+                                'namespace': namespace,
+                                'relation': 'volume'
+                            })
+                
+                # Check env vars for secrets/configmaps
+                containers = spec.get('containers', [])
+                for c in containers:
+                    for env in c.get('env', []):
+                         if 'valueFrom' in env and env['valueFrom']:
+                             vf = env['valueFrom']
+                             if 'configMapKeyRef' in vf and vf['configMapKeyRef']:
+                                 cm_name = vf['configMapKeyRef'].get('name')
+                                 if cm_name:
+                                     dependencies['related'].append({
+                                        'kind': 'configmap',
+                                        'name': cm_name,
+                                        'namespace': namespace,
+                                        'relation': 'env'
+                                    })
+                             elif 'secretKeyRef' in vf and vf['secretKeyRef']:
+                                 sec_name = vf['secretKeyRef'].get('name')
+                                 if sec_name:
+                                     dependencies['related'].append({
+                                        'kind': 'secret',
+                                        'name': sec_name,
+                                        'namespace': namespace,
+                                        'relation': 'env'
+                                    })
+
+            # PVC -> PV (Related/Upstream)
+            elif kind == 'persistentvolumeclaim':
+                pv_name = spec.get('volumeName')
+                if pv_name:
+                     dependencies['related'].append({
+                        'kind': 'persistentvolume',
+                        'name': pv_name,
+                        'namespace': '', # PVs are cluster-scoped
+                        'relation': 'bound-pv'
+                    })
+
+        return ApiResponse(
+            success=True,
+            data=dependencies,
+            timestamp=datetime.utcnow()
+        )
+
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+             from app.core.errors import ResourceNotFound
+             raise ResourceNotFound(f"{kind} '{name}' not found")
+        raise K8sApiError(f"Failed to get dependencies: {str(e)}")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error getting dependencies: {e}", exc_info=True)
+        raise K8sApiError(f"Error resolving dependencies: {str(e)}")
+
 @router.get("/{kind}/{namespace}/{name}/describe", response_model=ApiResponse[str])
 async def describe_resource(
     kind: str,

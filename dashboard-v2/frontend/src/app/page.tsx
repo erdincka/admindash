@@ -63,12 +63,13 @@ import {
     Upgrade,
     Trash,
     Add,
-    Refresh
+    Refresh,
+    ShareOption
 } from 'grommet-icons';
 import { notify } from '@/lib/utils/notifications';
 import { deploymentsApi, namespacesApi } from '@/lib/api/deployments';
 import { DeploymentCreate } from '@/types/deployment';
-import { resourcesApi, YamlApplyResult } from '@/lib/api/resources';
+import { resourcesApi, YamlApplyResult, ResourceDependencies } from '@/lib/api/resources';
 import { chartsApi } from '@/lib/api/charts';
 import dynamic from 'next/dynamic';
 
@@ -1371,6 +1372,9 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
     const [describeContent, setDescribeContent] = useState('');
     const [describeTitle, setDescribeTitle] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showDependencies, setShowDependencies] = useState(false);
+    const [dependenciesData, setDependenciesData] = useState<ResourceDependencies | null>(null);
+    const [dependenciesTitle, setDependenciesTitle] = useState('');
 
     const resourceTypes = [
         { label: 'Pods', value: 'pod' },
@@ -1446,6 +1450,19 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
             }
         } catch (error: any) {
             notify.critical(`Failed to describe resource: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleDependencies = async (resource: any) => {
+        try {
+            const res = await resourcesApi.getDependencies(resourceType, resource.namespace, resource.name);
+            if (res.data) {
+                setDependenciesData(res.data);
+                setDependenciesTitle(`Dependencies: ${resourceType}/${resource.namespace}/${resource.name}`);
+                setShowDependencies(true);
+            }
+        } catch (error: any) {
+            notify.critical(`Failed to fetch dependencies: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -1560,6 +1577,16 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
                             hoverIndicator
                         />
                     )}
+                    <Button
+                        icon={<ShareOption size="small" />}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDependencies(datum);
+                        }}
+                        tip="Dependencies"
+                        plain
+                        hoverIndicator
+                    />
                     <Button
                         icon={<Info size="small" />}
                         onClick={(e) => {
@@ -1758,6 +1785,69 @@ const KubernetesResources = ({ domain }: { domain: string }) => {
                                 }}
                             />
                         </Box>
+                    </Box>
+                </Layer>
+            )}
+
+            {/* Dependencies Modal */}
+            {showDependencies && dependenciesData && (
+                <Layer
+                    onEsc={() => setShowDependencies(false)}
+                    onClickOutside={() => setShowDependencies(false)}
+                    margin="medium"
+                >
+                    <Box background="white" pad="medium" gap="small" width="large" height="medium" overflow="auto">
+                        <Box direction="row" justify="between" align="center">
+                            <Text weight="bold">{dependenciesTitle}</Text>
+                            <Button icon={<Close />} onClick={() => setShowDependencies(false)} plain />
+                        </Box>
+
+                        <Grid columns={['1/3', '1/3', '1/3']} gap="medium">
+                            <Box gap="small">
+                                <Heading level={4}>Upstream (Parents)</Heading>
+                                {dependenciesData.upstream.length === 0 ? <Text color="text-weak">None</Text> :
+                                    dependenciesData.upstream.map((dep, i) => (
+                                        <Card key={i} background="light-1" pad="small">
+                                            <CardBody>
+                                                <Text weight="bold">{dep.kind}</Text>
+                                                <Text>{dep.name}</Text>
+                                            </CardBody>
+                                        </Card>
+                                    ))
+                                }
+                            </Box>
+
+                            <Box gap="small">
+                                <Heading level={4}>Downstream (Children)</Heading>
+                                {dependenciesData.downstream.length === 0 ? <Text color="text-weak">None</Text> :
+                                    dependenciesData.downstream.map((dep, i) => (
+                                        <Card key={i} background="light-1" pad="small">
+                                            <CardBody>
+                                                <Text weight="bold">{dep.kind}</Text>
+                                                <Text>{dep.name}</Text>
+                                                {dep.status && <Text size="small" color={dep.status === 'Running' ? 'status-ok' : 'status-warning'}>{dep.status}</Text>}
+                                                {dep.replicas && <Text size="small">{dep.replicas} replicas</Text>}
+                                            </CardBody>
+                                        </Card>
+                                    ))
+                                }
+                            </Box>
+
+                            <Box gap="small">
+                                <Heading level={4}>Related</Heading>
+                                {dependenciesData.related.length === 0 ? <Text color="text-weak">None</Text> :
+                                    dependenciesData.related.map((dep, i) => (
+                                        <Card key={i} background="light-1" pad="small">
+                                            <CardBody>
+                                                <Text weight="bold">{dep.kind}</Text>
+                                                <Text>{dep.name}</Text>
+                                                {dep.relation && <Text size="small" style={{ fontStyle: 'italic' }}>{dep.relation}</Text>}
+                                            </CardBody>
+                                        </Card>
+                                    ))
+                                }
+                            </Box>
+                        </Grid>
                     </Box>
                 </Layer>
             )}

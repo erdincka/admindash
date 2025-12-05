@@ -36,9 +36,28 @@ export const resourcesApi = {
         return apiClient.delete<any>(`/resources/${kind}/${namespace}/${name}`)
     },
 
+    getDependencies: async (kind: string, namespace: string, name: string): Promise<ApiResponse<ResourceDependencies>> => {
+        return apiClient.get<ResourceDependencies>(`/resources/${kind}/${namespace}/${name}/dependencies`)
+    },
+
     applyYaml: async (yaml: string): Promise<ApiResponse<YamlApplyResult>> => {
         return apiClient.post<YamlApplyResult>('/resources/apply', { yaml })
     }
+}
+
+export interface ResourceDependency {
+    kind: string
+    name: string
+    namespace: string
+    status?: string
+    replicas?: string
+    relation?: string
+}
+
+export interface ResourceDependencies {
+    upstream: ResourceDependency[]
+    downstream: ResourceDependency[]
+    related: ResourceDependency[]
 }
 
 export interface YamlApplyResult {
