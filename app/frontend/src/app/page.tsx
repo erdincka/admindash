@@ -44,6 +44,7 @@ import { HelmCharts } from '@/components/layout/HelmCharts';
 import { KubernetesResources } from '@/components/layout/KubernetesResources';
 import { DataSources } from '@/components/layout/DataSources';
 import { DataBrowser } from '@/components/layout/DataBrowser';
+import { Monitoring } from '@/components/layout/Monitoring';
 
 
 // Define the navigation structure
@@ -257,7 +258,7 @@ export default function Home() {
             case 'data-browser':
                 return <DataBrowser />;
             case 'monitoring':
-                return <ContentPlaceholder title="Monitoring" description="Comprehensive metrics, logs, and traces for your cluster." />;
+                return <Monitoring />;
             default:
                 return <ContentPlaceholder title="Not Found" description="Select an item from the menu." />;
         }

@@ -42,8 +42,22 @@ class ApiClient {
         return data as ApiResponse<T>
     }
 
-    async get<T>(path: string): Promise<ApiResponse<T>> {
-        const response = await fetch(`${this.baseUrl}${path}`, {
+    async get<T>(path: string, config?: { params?: Record<string, string | number | undefined | null> }): Promise<ApiResponse<T>> {
+        let url = `${this.baseUrl}${path}`;
+        if (config?.params) {
+            const params = new URLSearchParams();
+            Object.entries(config.params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    params.append(key, String(value));
+                }
+            });
+            const queryString = params.toString();
+            if (queryString) {
+                url += `?${queryString}`;
+            }
+        }
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
