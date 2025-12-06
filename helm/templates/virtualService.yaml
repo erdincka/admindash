@@ -11,18 +11,6 @@ spec:
   hosts:
     - {{ .Values.ezua.virtualService.endpoint | required "\nValid .Values.ezua.virtualService.endpoint is required !\n" }}
   http:
-    - match:
-        - uri:
-            prefix: /
-        - uri:
-            exact: /
-      rewrite:
-        uri: /
-      route:
-        - destination:
-            host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
-            port:
-              number: 3000
 # API
     - match:
         - uri:
@@ -31,7 +19,7 @@ spec:
         uri: /api
       route:
         - destination:
-            host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            host: {{ include "kubik.fullname" . }}-backend.{{ .Release.Namespace }}.svc.cluster.local
             port:
               number: 8000
 
@@ -43,6 +31,19 @@ spec:
         uri: /socket.io
       route:
         - destination:
-            host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            host: {{ include "kubik.fullname" . }}-backend.{{ .Release.Namespace }}.svc.cluster.local
             port:
               number: 8000
+
+    - match:
+        - uri:
+            prefix: /
+        - uri:
+            exact: /
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: {{ include "kubik.fullname" . }}-frontend.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: 3000

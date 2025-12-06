@@ -25,8 +25,8 @@
 # Python virtual environments
 __pycache__/
 env/
-**/venv/
-**/.venv/
+venv/
+.venv/
 # Streamlit cache
 .streamlit/cache
 # Jupyter Notebook

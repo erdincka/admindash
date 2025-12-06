@@ -78,7 +78,7 @@ const Terminal: React.FC<TerminalProps> = ({
         resizeObserver.observe(terminalRef.current);
 
         // Initialize socket connection
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
         // Remove /api/v1 suffix to get base URL
         const baseUrl = apiUrl.replace(/\/api\/v1\/?$/, '');
 

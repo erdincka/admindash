@@ -12,6 +12,9 @@ spec:
         - operation:
             hosts:
             - {{ .Values.ezua.virtualService.endpoint | required "\nValid .Values.ezua.virtualService.endpoint is required !\n" }}
+            paths:
+            - "/api/*"
+            - "/socket.io/*"
   selector:
     {{- with .Values.ezua.authorizationPolicy.matchLabels }}
     matchLabels:

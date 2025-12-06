@@ -31,7 +31,7 @@ class FileItem(BaseModel):
     permissions: Optional[str] = None
 
 class FSListRequest(BaseModel):
-    path: str = "/"
+    path: str = "/mnt"
 
 class FSReadRequest(BaseModel):
     path: str

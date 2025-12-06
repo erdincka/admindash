@@ -11,6 +11,7 @@ from kubernetes_asyncio import client
 import logging
 import subprocess
 import asyncio
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -39,55 +40,35 @@ async def list_charts(
     """List installed Helm releases across all namespaces"""
     try:
         # Use helm list to get all installed releases
-        cmd = ["helm", "list", "--all-namespaces", "--output", "json"]
-        
-        logger.info(f"Listing Helm releases: {' '.join(cmd)}")
-        
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            error_msg = stderr.decode() if stderr else "Unknown error"
-            logger.error(f"Helm list failed: {error_msg}")
-            raise K8sApiError(f"Helm list failed: {error_msg}")
-        
-        output = stdout.decode()
-        
-        # Parse JSON output
-        import json
-        releases_data = json.loads(output) if output.strip() else []
-        
-        # Transform to our format
-        releases = []
-        for release in releases_data:
-            # Extract chart name and version from chart field (format: chart-version)
-            chart_full = release.get('chart', '')
-            chart_name = chart_full
-            chart_version = 'unknown'
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://chartmuseum.ez-chartmuseum-ns.svc.cluster.local:8080/api/charts")
             
-            # Try to split chart-version
-            if chart_full:
-                # Chart format is usually "name-version"
-                # We need to find the last hyphen that separates name from version
-                parts = chart_full.rsplit('-', 1)
-                if len(parts) == 2:
-                    chart_name = parts[0]
-                    chart_version = parts[1]
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch charts from ChartMuseum: {response.text}")
+                raise K8sApiError(f"Failed to fetch charts: {response.status_code}")
+            
+            charts_data = response.json()
+            
+        releases = []
+        for chart_name, versions in charts_data.items():
+            # Get the latest version (first in the list usually, but let's verify or sort if needed)
+            # ChartMuseum usually returns versions sorted by created/semver. 
+            # We'll take the first one as latest.
+            if not versions:
+                continue
+                
+            latest = versions[0]
             
             releases.append({
-                'name': release.get('name', ''),
-                'namespace': release.get('namespace', ''),
-                'chart': chart_name,
-                'revision': release.get('revision', 0),
-                'version': chart_version,
-                'app_version': release.get('app_version', 'unknown'),
-                'status': release.get('status', 'unknown'),
-                'updated': release.get('updated', ''),
+                'name': chart_name,
+                'namespace': 'repo', # It's in the repo, not installed
+                'chart': f"{chart_name}-{latest.get('version', 'unknown')}",
+                'revision': 0,
+                'version': latest.get('version', 'unknown'),
+                'app_version': latest.get('appVersion', 'unknown'),
+                'status': 'available',
+                'updated': latest.get('created', ''),
+                'description': latest.get('description', '')
             })
         
         # Sort by namespace and name
