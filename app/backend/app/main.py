@@ -62,7 +62,7 @@ class EndpointFilter(logging.Filter):
         return record.getMessage().find("GET /health") == -1
 
 from app.config import settings
-from app.api.v1 import auth, deployments, namespaces, resources, charts, cluster
+from app.api.v1 import auth, deployments, namespaces, resources, charts, cluster, storage
 from app.api.websocket import socket_app
 
 app = FastAPI(
@@ -124,6 +124,7 @@ app.include_router(namespaces.router, prefix=f"{settings.api_prefix}/namespaces"
 app.include_router(resources.router, prefix=f"{settings.api_prefix}/resources", tags=["resources"])
 app.include_router(charts.router, prefix=f"{settings.api_prefix}/charts", tags=["charts"])
 app.include_router(cluster.router, prefix=f"{settings.api_prefix}/cluster", tags=["cluster"])
+app.include_router(storage.router, prefix=f"{settings.api_prefix}/storage", tags=["storage"])
 
 from app.api.v1 import virtualservices
 app.include_router(virtualservices.router, prefix=f"{settings.api_prefix}/virtualservices", tags=["virtualservices"])

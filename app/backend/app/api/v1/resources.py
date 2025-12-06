@@ -8,7 +8,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-SUPPORTED_KINDS = ['pod', 'deployment', 'service', 'configmap', 'secret', 'persistentvolumeclaim', 'persistentvolume', 'statefulset', 'daemonset', 'virtualservice', 'replicaset']
+SUPPORTED_KINDS = ['pod', 'deployment', 'service', 'configmap', 'secret', 'persistentvolumeclaim', 'persistentvolume', 'statefulset', 'daemonset', 'virtualservice', 'replicaset', 'ezdatasource']
 
 @router.get("/{kind}", response_model=ApiResponse[List[dict]])
 async def list_resources(

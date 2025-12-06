@@ -101,6 +101,23 @@ class K8sClient:
                         ret = await apps_v1.list_namespaced_replica_set(namespace)
                     else:
                         ret = await apps_v1.list_replica_set_for_all_namespaces()
+                elif kind.lower() == 'ezdatasource':
+                    custom_api = client.CustomObjectsApi(api)
+                    if namespace:
+                        ret = await custom_api.list_namespaced_custom_object(
+                            group="ezdata.ezdata.hpe.com",
+                            version="v1alpha1",
+                            namespace=namespace,
+                            plural="ezdatasources"
+                        )
+                    else:
+                        ret = await custom_api.list_cluster_custom_object(
+                            group="ezdata.ezdata.hpe.com",
+                            version="v1alpha1",
+                            plural="ezdatasources"
+                        )
+                    # Custom objects list returns a dict with 'items', not an object with .items
+                    return ret.get('items', [])
                 else:
                     raise K8sApiError(f"Unsupported resource kind: {kind}")
                 

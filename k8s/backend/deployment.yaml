@@ -6,6 +6,10 @@ metadata:
   labels:
     app: dashboard-backend
     environment: development
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+  annotations:
+    hpe-ezua/add-auth-token: "true"
 spec:
   replicas: 1
   selector:

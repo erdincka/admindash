@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "kubik.name" . }}-shared-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubik.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: nfs-csi
+  volumeName: {{ include "kubik.name" . }}-shared-pv
+  volumeMode: Filesystem
