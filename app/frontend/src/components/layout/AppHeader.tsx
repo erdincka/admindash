@@ -10,11 +10,12 @@ import { useContext } from 'react'
 export function AppHeader() {
     const { user, logout } = useAuth()
     const { isConnected } = useWebSocket()
-    const theme = useContext(ThemeContext);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const theme = useContext(ThemeContext) as any;
 
     return (
         <Header elevation="small" background={{
-            fill: 'horizontal',
+            size: 'full',
             color: theme.dark
                 ? theme.global.colors['background-front']
                 : theme.global.colors['background-back'].dark,

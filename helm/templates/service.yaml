@@ -1,15 +1,47 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "kubik.fullname" . }}
+  name: {{ include "kubik.fullname" . }}-backend
   labels:
     {{- include "kubik.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  type: ClusterIP
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.targetPort }}
+    - port: 8000
+      targetPort: 8000
       protocol: TCP
-      name: {{ .Values.service.name }}
+      name: http
+  selector:
+    {{- include "kubik.selectorLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kubik.fullname" . }}-frontend
+  labels:
+    {{- include "kubik.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "kubik.selectorLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kubik.fullname" . }}-redis
+  labels:
+    {{- include "kubik.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: http
   selector:
     {{- include "kubik.selectorLabels" . | nindent 4 }}

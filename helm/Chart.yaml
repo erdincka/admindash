@@ -1,7 +1,7 @@
 name: kubik
-version: 0.1.7
+version: 1.0.0
 apiVersion: v2
-appVersion: v0.1.5
+appVersion: v1.0.0
 description: Admin Dashboard for PCAI
 icon: https://raw.githubusercontent.com/kubernetes/website/main/static/images/kubernetes_logo.svg
 keywords:
@@ -9,4 +9,6 @@ keywords:
   - kubernetes
   - admin
   - platform management
+  - HPE
+  - PCAI
 type: application

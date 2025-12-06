@@ -9,5 +9,5 @@ subjects:
     namespace: dashboard-dev
 roleRef:
   kind: ClusterRole
-  name: ezapp-manager-role # cluster-admin
+  name: cluster-admin # ezapp-manager-role
   apiGroup: rbac.authorization.k8s.io

@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-PROMETHEUS_URL = "http://kubeprom-prometheus.prometheus:9090"
+import os
+
+PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://kubeprom-prometheus.prometheus:9090")
 
 @router.get("/query")
 async def prometheus_query(

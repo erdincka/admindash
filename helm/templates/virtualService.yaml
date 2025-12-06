@@ -22,4 +22,27 @@ spec:
         - destination:
             host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
             port:
-              number: {{ .Values.service.port }}
+              number: 3000
+# API
+    - match:
+        - uri:
+            prefix: /api
+      rewrite:
+        uri: /api
+      route:
+        - destination:
+            host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: 8000
+
+# WebSockets
+    - match:
+        - uri:
+            prefix: /socket.io
+      rewrite:
+        uri: /socket.io
+      route:
+        - destination:
+            host: {{ include "kubik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: 8000

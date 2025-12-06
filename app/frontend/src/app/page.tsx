@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect } from 'react';
+import { useEffect, useContext, useState } from 'react';
 import { clusterApi, ClusterMetrics } from '@/lib/api/cluster';
-
-import { useContext, useState } from 'react';
 import {
     Box,
     Button,

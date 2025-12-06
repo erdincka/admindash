@@ -1,0 +1,456 @@
+---
+# Source: kubik/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: release-name-kubik-serviceaccount
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+  annotations:
+    hpe-ezua/add-auth-token: "true"
+---
+# Source: kubik/templates/pv-shared.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: kubik-shared-pv
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  accessModes:
+  - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-csi
+  volumeMode: Filesystem
+---
+# Source: kubik/templates/pvc-shared.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kubik-shared-pvc
+  namespace: default
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: nfs-csi
+  volumeName: kubik-shared-pv
+  volumeMode: Filesystem
+---
+# Source: kubik/templates/roleBinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: release-name-kubik-serviceaccount-rbac
+subjects:
+  - kind: ServiceAccount
+    # Reference to upper's `metadata.name`
+    name: release-name-kubik-serviceaccount
+    # Reference to upper's `metadata.namespace`
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: ezapp-manager-role # cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: kubik/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-kubik-backend
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+---
+# Source: kubik/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-kubik-frontend
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+---
+# Source: kubik/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-kubik-redis
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+---
+# Source: kubik/templates/backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-kubik-backend
+  labels:
+    
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      
+      app.kubernetes.io/name: kubik
+      app.kubernetes.io/instance: release-name
+  template:
+    metadata:
+      annotations:
+        
+        hpe-ezua/add-auth-token: "true"
+      labels:
+        
+        app.kubernetes.io/name: kubik
+        app.kubernetes.io/instance: release-name
+    spec:
+      serviceAccountName: release-name-kubik-serviceaccount
+      containers:
+        - name: backend
+          image: erdincka/dashboard-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: CORS_ORIGINS
+              value: "['http://localhost:3000', kubik.${DOMAIN_NAME}]"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: K8S_IN_CLUSTER
+              value: "true"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "512m"
+            limits:
+              memory: "1Gi"
+              cpu: "1024m"
+---
+# Source: kubik/templates/frontend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-kubik-frontend
+  labels:
+    
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      
+      app.kubernetes.io/name: kubik
+      app.kubernetes.io/instance: release-name
+  template:
+    metadata:
+      labels:
+        
+        app.kubernetes.io/name: kubik
+        app.kubernetes.io/instance: release-name
+    spec:
+      containers:
+        - name: frontend
+          image: erdincka/dashboard-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://kubik.${DOMAIN_NAME}/api/v1"
+            - name: NEXT_PUBLIC_WS_URL
+              value: "https://kubik.${DOMAIN_NAME}"
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "1Gi"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+---
+# Source: kubik/templates/redis-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-name-kubik-redis
+  labels:
+    
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      
+      app.kubernetes.io/name: kubik
+      app.kubernetes.io/instance: release-name
+  template:
+    metadata:
+      labels:
+        
+        app.kubernetes.io/name: kubik
+        app.kubernetes.io/instance: release-name
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 6379
+              name: redis
+              protocol: TCP
+          args:
+            - --maxmemory
+            - "256mb"
+            - --maxmemory-policy
+            - allkeys-lru
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "512m"
+            requests:
+              memory: "256Mi"
+              cpu: "256m"
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Source: kubik/templates/authpolicy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: release-name-kubik-auth-policy
+  namespace: istio-system
+spec:
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy
+  rules:
+    - to:
+        - operation:
+            hosts:
+            - kubik.${DOMAIN_NAME}
+  selector:
+    matchLabels:
+      istio: ingressgateway
+---
+# Source: kubik/templates/virtualService.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: release-name-kubik-virtual-service
+  namespace: default
+  labels:
+    helm.sh/chart: kubik-0.1.7
+    app.kubernetes.io/name: kubik
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "v0.1.5"
+    app.kubernetes.io/managed-by: Helm
+    hpe-ezua/app: release-name
+    hpe-ezua/type: vendor-service
+    add-external-df-volume: "true"
+    add-user-info-config: "true"
+spec:
+  gateways:
+    - istio-system/ezaf-gateway
+  hosts:
+    - kubik.${DOMAIN_NAME}
+  http:
+    - match:
+        - uri:
+            prefix: /
+        - uri:
+            exact: /
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: release-name-kubik.default.svc.cluster.local
+            port:
+              number: 3000
+# API
+    - match:
+        - uri:
+            prefix: /api
+      rewrite:
+        uri: /api
+      route:
+        - destination:
+            host: release-name-kubik.default.svc.cluster.local
+            port:
+              number: 8000
+
+# WebSockets
+    - match:
+        - uri:
+            prefix: /socket.io
+      rewrite:
+        uri: /socket.io
+      route:
+        - destination:
+            host: release-name-kubik.default.svc.cluster.local
+            port:
+              number: 8000
+---
+# Source: kubik/templates/clusterPolicy.yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-vendor-app-labels-release-name-kubik
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  background: false
+  rules:
+  - name: add-vendor-app-labels
+    match:
+      any:
+      - resources:
+          # list all namespaces defined by the chart here
+          # if there are no namespace resource defined leave only .Release.Namespace
+          namespaces:
+          - default
+          kinds:
+          - Pod
+    mutate:
+      patchStrategicMerge:
+        metadata:
+            labels:
+              hpe-ezua/type: vendor-service

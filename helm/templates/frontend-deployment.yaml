@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubik.fullname" . }}-frontend
+  labels:
+    {{ include "kubik.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{ include "kubik.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{ include "kubik.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: frontend
+          image: {{ .Values.airgap.registry.url }}{{ .Values.frontend.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://{{ .Values.ezua.virtualService.endpoint }}/api/v1"
+            - name: NEXT_PUBLIC_WS_URL
+              value: "https://{{ .Values.ezua.virtualService.endpoint }}"
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "1Gi"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"

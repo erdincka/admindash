@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubik.fullname" . }}-redis
+  labels:
+    {{ include "kubik.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{ include "kubik.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{ include "kubik.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.airgap.registry.url }}{{ .Values.redis.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 6379
+              name: redis
+              protocol: TCP
+          args:
+            - --maxmemory
+            - "256mb"
+            - --maxmemory-policy
+            - allkeys-lru
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "512m"
+            requests:
+              memory: "256Mi"
+              cpu: "256m"
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5

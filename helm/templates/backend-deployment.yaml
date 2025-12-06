@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubik.fullname" . }}-backend
+  labels:
+    {{ include "kubik.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{ include "kubik.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{ include "hpe-ezua.annotations" . | nindent 8 }}
+      labels:
+        {{ include "kubik.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "kubik.serviceAccountName" . }}
+      containers:
+        - name: backend
+          image: {{ .Values.airgap.registry.url }}{{ .Values.backend.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: CORS_ORIGINS
+              value: "['http://localhost:3000', {{ .Values.ezua.virtualService.endpoint }}]"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: K8S_IN_CLUSTER
+              value: "true"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "512m"
+            limits:
+              memory: "1Gi"
+              cpu: "1024m"
