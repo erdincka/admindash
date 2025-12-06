@@ -36,6 +36,3 @@
 
 # Tilt
 **/.tiltbuild/
-
-# old version
-./dashboard

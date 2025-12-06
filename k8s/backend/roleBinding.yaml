@@ -2,11 +2,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: backend-serviceaccount-rbac
-  namespace: dashboard-dev
+  namespace: kubik-dev
 subjects:
   - kind: ServiceAccount
     name: backend-serviceaccount
-    namespace: dashboard-dev
+    namespace: kubik-dev
 roleRef:
   kind: ClusterRole
   name: cluster-admin # ezapp-manager-role

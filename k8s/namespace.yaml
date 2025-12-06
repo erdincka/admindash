@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: dashboard-dev
+  name: kubik-dev
   labels:
-    app: dashboard
+    app: kubik
     environment: development

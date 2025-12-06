@@ -26,10 +26,10 @@ airgap:
     url: "" # ${AIRGAP_REGISTRY}
 
 frontend:
-  image: "erdincka/dashboard-frontend:latest"
+  image: "erdincka/kubik-frontend:latest"
 
 backend:
-  image: "erdincka/dashboard-backend:latest"
+  image: "erdincka/kubik-backend:latest"
   # env:
   #   CORS_ORIGINS: '["https://dash.${DOMAIN_NAME}"]' # Restrict for Prod
   # Ezua Auth Token is mounted to /etc/secrets/ezua/.auth_token automatically

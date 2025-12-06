@@ -2,9 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: dashboard-dev
+  namespace: kubik-dev
   labels:
-    app: dashboard-backend
+    app: kubik-backend
     environment: development
     add-external-df-volume: "true"
     add-user-info-config: "true"
@@ -14,16 +14,16 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dashboard-backend
+      app: kubik-backend
   template:
     metadata:
       labels:
-        app: dashboard-backend
+        app: kubik-backend
     spec:
       serviceAccountName: backend-serviceaccount
       containers:
         - name: backend
-          image: erdincka/dashboard-backend-dev
+          image: erdincka/kubik-backend-dev
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

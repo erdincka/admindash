@@ -222,7 +222,7 @@ app/
 
 ```bash
 # Clone/navigate to project
-cd dashboard
+cd kubik
 
 # Start Redis
 docker run -p 6379:6379 redis:7-alpine

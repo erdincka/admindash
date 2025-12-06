@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     
     # Kubernetes
     k8s_in_cluster: bool = True
-    k8s_namespace: str = "dashboard-dev"
+    k8s_namespace: str = "kubik-dev"
     
     # Cache TTL (seconds)
     cache_ttl_namespaces: int = 300

@@ -2,23 +2,23 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: dashboard-dev
+  namespace: kubik-dev
   labels:
-    app: dashboard-frontend
+    app: kubik-frontend
     environment: development
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dashboard-frontend
+      app: kubik-frontend
   template:
     metadata:
       labels:
-        app: dashboard-frontend
+        app: kubik-frontend
     spec:
       containers:
         - name: frontend
-          image: erdincka/dashboard-frontend-dev
+          image: erdincka/kubik-frontend-dev
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

@@ -14,7 +14,7 @@ k8s_yaml([
 k8s_resource('redis', labels=['infrastructure'])
 
 # Backend - use custom_build to avoid registry issues
-docker_build('erdincka/dashboard-backend-dev',
+docker_build('erdincka/kubik-backend-dev',
     context='./app/backend',
     dockerfile='./app/backend/Dockerfile.dev',
     build_args={'platform': 'linux/amd64'},
@@ -42,7 +42,7 @@ k8s_resource(
 )
 
 # Frontend - use custom_build to avoid registry issues
-docker_build('erdincka/dashboard-frontend-dev',
+docker_build('erdincka/kubik-frontend-dev',
     dockerfile='./app/frontend/Dockerfile.dev',
     context='./app/frontend',
     build_args={ 'platform': 'linux/amd64' },
@@ -69,14 +69,14 @@ k8s_resource(
 
 # Print helpful message
 print("""
-🚀 Dashboard v2 Development Environment
+🚀 Kubik v2 Development Environment
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Frontend:  http://localhost:3000
 Backend:   http://localhost:8000
 API Docs:  http://localhost:8000/docs
 Tilt UI:   http://localhost:10350
 
-Namespace: dashboard-dev
+Namespace: kubik-dev
 Context:   lonadmin@lonpcaitwl
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """)

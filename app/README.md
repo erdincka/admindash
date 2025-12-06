@@ -50,7 +50,7 @@ app/
 
 ## Architecture
 
-- Deployed to `dashboard-dev` namespace
+- Deployed to `kubik-dev` namespace
 - Port forwarding for local access
 - Live reload for rapid development
 - HPE branded UI with Grommet theme
@@ -64,7 +64,7 @@ app/
 
 ## Safety
 
-- All resources in `dashboard-dev` namespace
+- All resources in `kubik-dev` namespace
 - No impact on production cluster
 - Local builds only
 - Ephemeral Redis (no persistence in dev)

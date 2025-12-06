@@ -186,7 +186,7 @@ NEXT_PUBLIC_ENV=development
 #### Backend (.env)
 ```bash
 # Application
-APP_NAME=k8s-dashboard
+APP_NAME=kubik
 APP_ENV=development
 LOG_LEVEL=DEBUG
 
