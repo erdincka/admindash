@@ -366,7 +366,7 @@ export const ImportApplication = () => {
                                             />
                                         </FormField>
                                         <CheckBox
-                                            label="Mount User Token (SSO)"
+                                            label="Expose OIDC (for SSO)"
                                             checked={formData.is_sso}
                                             disabled={!formData.user_namespace}
                                             onChange={e => setFormData({ ...formData, is_sso: e.target.checked })}

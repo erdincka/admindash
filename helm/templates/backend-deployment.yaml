@@ -16,6 +16,14 @@ spec:
       labels:
         {{ include "kubik.labels" . | nindent 8 }}
     spec:
+      volumes:
+        - name: datasources
+          csi:
+            driver: csi.ezdata.io
+            readOnly: true
+        - name: shared-volume
+          persistentVolumeClaim:
+            claimName: {{ include "kubik.name" . }}-shared-pvc
       serviceAccountName: {{ include "kubik.serviceAccountName" . }}
       containers:
         - name: backend
@@ -34,6 +42,12 @@ spec:
               value: "true"
             - name: ENVIRONMENT
               value: "production"
+          volumeMounts:
+            - mountPath: /mnt/datasources
+              mountPropagation: HostToContainer
+              name: datasources
+            - mountPath: /mnt/shared
+              name: shared-volume
           livenessProbe:
             httpGet:
               path: /health

@@ -20,8 +20,6 @@ spec:
     timeout: 45m
     wait: "true"
   values: |
-    # For a single endpoint app
-
     #Platform options
     ezua:
       domainName: "${DOMAIN_NAME}"
