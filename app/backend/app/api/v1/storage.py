@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import httpx
@@ -162,7 +162,9 @@ async def list_filesystem(
     request: FSListRequest,
 ):
     """List files in the local filesystem"""
-    path = request.path
+    logger.debug(f"Folder list request: {request.path}")
+    path = "/mnt" + request.path
+    logger.debug(f"Listing folder: {path}")
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Path not found")
 
@@ -205,7 +207,9 @@ async def read_filesystem(
     request: FSReadRequest,
 ):
     """Read file content from the local filesystem"""
-    path = request.path
+    logger.debug(f"Read request for file: {request.path}")
+    path = "/mnt/" + request.path
+    logger.debug(f"Reading file: {path}")
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -214,68 +218,40 @@ async def read_filesystem(
 
     try:
         mime_type, _ = mimetypes.guess_type(path)
+        logger.debug(f"Found mime type: {mime_type}")
         size = os.path.getsize(path)
 
-        # Determine if text or binary
-        is_text = False
-        if mime_type:
-            if mime_type.startswith("text/") or mime_type in [
-                "application/json",
-                "application/javascript",
-                "application/xml",
-            ]:
-                is_text = True
+        # Try to read as text and if fails, try to read as binary
+        try:
+            logger.debug("Trying to read file as text")
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            logger.debug("File read as text successfully")
+            return ApiResponse(
+                success=True,
+                data=FileContent(
+                    content=content, mime_type=mime_type or "text/plain", size=size
+                ),
+                timestamp=datetime.utcnow(),
+            )
+        except UnicodeDecodeError:
+            # Fallback to binary if not valid utf-8
+            # is_text = False
+            logger.debug("Failed to read file as text, trying binary")
+            # Binary reading
+            with open(path, "rb") as f:
+                content = f.read()
 
-        # Fallback check for common code extensions if mime is None
-        if not mime_type:
-            if path.endswith(
-                (
-                    ".py",
-                    ".ts",
-                    ".tsx",
-                    ".js",
-                    ".jsx",
-                    ".go",
-                    ".rs",
-                    ".yaml",
-                    ".yml",
-                    ".md",
-                    ".log",
-                    ".sh",
-                    ".conf",
-                )
-            ):
-                is_text = True
-                mime_type = "text/plain"  # approximation
-
-        if is_text:
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                return ApiResponse(
-                    success=True,
-                    data=FileContent(
-                        content=content, mime_type=mime_type or "text/plain", size=size
-                    ),
-                    timestamp=datetime.utcnow(),
-                )
-            except UnicodeDecodeError:
-                # Fallback to binary if not valid utf-8
-                is_text = False
-
-        # Binary reading
-        with open(path, "rb") as f:
-            content = f.read()
-
-        return ApiResponse(
-            success=True,
-            data=FileContent(
-                base64_content=base64.b64encode(content).decode("utf-8"),
-                mime_type=mime_type or "application/octet-stream",
-                size=size,
-            ),
-            timestamp=datetime.utcnow(),
-        )
+            logger.debug("File read as binary succesfully")
+            return ApiResponse(
+                success=True,
+                data=FileContent(
+                    base64_content=base64.b64encode(content).decode("utf-8"),
+                    mime_type=mime_type or "application/octet-stream",
+                    size=size,
+                ),
+                timestamp=datetime.utcnow(),
+            )
 
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
