@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       labels:
-        {{ include "kubik.selectorLabels" . | nindent 8 }}
+        {{ include "kubik.labels" . | nindent 8 }}
     spec:
       containers:
         - name: frontend
@@ -26,7 +26,7 @@ spec:
             - name: NEXT_PUBLIC_API_URL
               value: "/api/v1"
             - name: NEXT_PUBLIC_WS_URL
-              value: ""
+              value: "/socket.io"
             - name: NODE_ENV
               value: "production"
           resources:

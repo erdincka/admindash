@@ -17,7 +17,6 @@ import {
     Meter,
     Stack,
     Menu,
-    Anchor
 } from 'grommet';
 
 import {
@@ -265,24 +264,6 @@ export default function Home() {
     return (
         <Page background="background-back" flex="grow">
             <PageContent>
-                {/* Header with Domain */}
-                <Box
-                    direction="row"
-                    justify="between"
-                    align="center"
-                    pad={{ horizontal: 'medium', vertical: 'small' }}
-                    background="white"
-                    round="small"
-                    elevation="small"
-                    margin={{ bottom: 'medium' }}
-                >
-                    <Heading level="3" margin="none">HPE AI Essentials Dashboard</Heading>
-                    <Box direction="row" gap="small" align="center">
-                        <Text size="small" color="text-weak">Cluster:</Text>
-                        <Anchor href={`https://home.${domain}`} target="_blank" weight="bold">{domain.toUpperCase()}</Anchor>
-                    </Box>
-                </Box>
-
                 <Grid
                     columns={['auto', 'flex']}
                     rows={['auto']}

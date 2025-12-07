@@ -12,5 +12,8 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
 # Development server with hot reload
 CMD ["npm", "run", "dev"]

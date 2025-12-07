@@ -1,4 +1,3 @@
-
 # Stage 1: Install dependencies
 FROM node:25-alpine AS deps
 WORKDIR /app

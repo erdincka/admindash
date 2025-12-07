@@ -7,7 +7,7 @@ const nextConfig = {
     },
     env: {
         NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '/api/v1',
-        NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || '',
+        NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || '/socket.io',
     },
 }
 

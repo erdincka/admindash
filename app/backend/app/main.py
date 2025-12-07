@@ -56,20 +56,31 @@ LOGGING_CONFIG = {
     },
 }
 
+
 # Filter out /health endpoint logs
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         return record.getMessage().find("GET /health") == -1
 
+
 from app.config import settings
-from app.api.v1 import auth, deployments, namespaces, resources, charts, cluster, storage, monitoring
+from app.api.v1 import (
+    deployments,
+    namespaces,
+    resources,
+    charts,
+    cluster,
+    storage,
+    monitoring,
+)
 from app.api.websocket import socket_app
 
 app = FastAPI(
     title="AI Essentials Dashboard API",
     version="2.0.0",
-    description="Kubernetes Dashboard API for HPE AI Essentials"
+    description="Kubernetes Dashboard API for HPE AI Essentials",
 )
+
 
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError):
@@ -77,14 +88,11 @@ async def app_error_handler(request: Request, exc: AppError):
         status_code=exc.status_code,
         content=ApiResponse(
             success=False,
-            error=ErrorDetail(
-                code=exc.code,
-                message=exc.message,
-                details=exc.details
-            ),
-            timestamp=datetime.utcnow()
-        ).model_dump(mode='json')
+            error=ErrorDetail(code=exc.code, message=exc.message, details=exc.details),
+            timestamp=datetime.utcnow(),
+        ).model_dump(mode="json"),
     )
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -94,22 +102,23 @@ async def general_exception_handler(request: Request, exc: Exception):
         content=ApiResponse(
             success=False,
             error=ErrorDetail(
-                code="INTERNAL_ERROR",
-                message="An unexpected error occurred"
+                code="INTERNAL_ERROR", message="An unexpected error occurred"
             ),
-            timestamp=datetime.utcnow()
-        ).model_dump(mode='json')
+            timestamp=datetime.utcnow(),
+        ).model_dump(mode="json"),
     )
+
 
 @app.on_event("startup")
 async def startup_event():
     # Apply logging configuration
     logging.config.dictConfig(LOGGING_CONFIG)
 
+
 # CORS middleware for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -118,17 +127,37 @@ app.add_middleware(
 # Mount Socket.IO app
 app.mount("/socket.io", socket_app)
 
-app.include_router(auth.router, prefix=f"{settings.api_prefix}/auth", tags=["auth"])
-app.include_router(deployments.router, prefix=f"{settings.api_prefix}/deployments", tags=["deployments"])
-app.include_router(namespaces.router, prefix=f"{settings.api_prefix}/namespaces", tags=["namespaces"])
-app.include_router(resources.router, prefix=f"{settings.api_prefix}/resources", tags=["resources"])
-app.include_router(charts.router, prefix=f"{settings.api_prefix}/charts", tags=["charts"])
-app.include_router(cluster.router, prefix=f"{settings.api_prefix}/cluster", tags=["cluster"])
-app.include_router(storage.router, prefix=f"{settings.api_prefix}/storage", tags=["storage"])
-app.include_router(monitoring.router, prefix=f"{settings.api_prefix}/monitoring", tags=["monitoring"])
+app.include_router(
+    deployments.router,
+    prefix=f"{settings.api_prefix}/deployments",
+    tags=["deployments"],
+)
+app.include_router(
+    namespaces.router, prefix=f"{settings.api_prefix}/namespaces", tags=["namespaces"]
+)
+app.include_router(
+    resources.router, prefix=f"{settings.api_prefix}/resources", tags=["resources"]
+)
+app.include_router(
+    charts.router, prefix=f"{settings.api_prefix}/charts", tags=["charts"]
+)
+app.include_router(
+    cluster.router, prefix=f"{settings.api_prefix}/cluster", tags=["cluster"]
+)
+app.include_router(
+    storage.router, prefix=f"{settings.api_prefix}/storage", tags=["storage"]
+)
+app.include_router(
+    monitoring.router, prefix=f"{settings.api_prefix}/monitoring", tags=["monitoring"]
+)
 
 from app.api.v1 import virtualservices
-app.include_router(virtualservices.router, prefix=f"{settings.api_prefix}/virtualservices", tags=["virtualservices"])
+
+app.include_router(
+    virtualservices.router,
+    prefix=f"{settings.api_prefix}/virtualservices",
+    tags=["virtualservices"],
+)
 
 
 @app.get("/health")
@@ -137,20 +166,19 @@ async def health():
     return {
         "status": "healthy",
         "version": "2.0.0",
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.utcnow().isoformat() + "Z",
     }
+
 
 @app.get("/api/v1/health")
 async def api_health():
     """API v1 health check endpoint"""
     return {
         "success": True,
-        "data": {
-            "status": "healthy",
-            "api_version": "v1"
-        },
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "data": {"status": "healthy", "api_version": "v1"},
+        "timestamp": datetime.utcnow().isoformat() + "Z",
     }
+
 
 @app.get("/")
 async def root():
@@ -158,5 +186,5 @@ async def root():
     return {
         "message": "AI Essentials Dashboard API v1",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }

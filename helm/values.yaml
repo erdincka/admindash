@@ -2,22 +2,11 @@
 
 #Platform options
 ezua:
-  oidc:
-    client_id: "${OIDC_CLIENT_ID}"
-    client_secret: "${OIDC_CLIENT_SECRET}"
-    domain: "${OIDC_DOMAIN}"
-
   domainName: "${DOMAIN_NAME}"
 
   virtualService:
     endpoint: "kubik.${DOMAIN_NAME}"
     istioGateway: "istio-system/ezaf-gateway"
-
-  authorizationPolicy:
-    namespace: "istio-system"
-    providerName: "oauth2-proxy"
-    matchLabels:
-      istio: "ingressgateway"
 
 imagePullPolicy: Always # IfNotPresent
 
@@ -30,19 +19,6 @@ frontend:
 
 backend:
   image: "erdincka/kubik-backend:latest"
-  env:
-    - name: LOG_LEVEL
-      value: "INFO"
-    - name: ENVIRONMENT
-      value: "production"
-    - name: CORS_ORIGINS
-      value: '["http://localhost:3000", "https://kubik.${DOMAIN_NAME}"]'
-    - name: OIDC_CLIENT_ID
-      value: "${OIDC_CLIENT_ID}"
-    - name: OIDC_CLIENT_SECRET
-      value: "${OIDC_CLIENT_SECRET}"
-    - name: OIDC_DOMAIN
-      value: "${OIDC_DOMAIN}"
 
   # Ezua Auth Token is mounted to /etc/secrets/ezua/.auth_token automatically
   # AUTH_TOKEN env var can be optional override

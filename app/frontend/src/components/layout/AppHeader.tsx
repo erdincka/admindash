@@ -1,14 +1,31 @@
 'use client'
 
-import { Header, Box, Text, Menu, Avatar, PageHeader, ThemeContext } from 'grommet'
-import { User as UserIcon, Logout } from 'grommet-icons'
-import { useAuth } from '@/lib/auth/AuthContext'
+import { Header, Box, PageHeader, ThemeContext, Anchor } from 'grommet'
 import { useWebSocket } from '@/lib/hooks/useWebSocket'
 import { ConnectionStatus } from '@/components/common/ConnectionStatus'
-import { useContext } from 'react'
+import { useContext, useEffect, useState } from 'react'
+import { clusterApi } from '@/lib/api/cluster'
 
 export function AppHeader() {
-    const { user, logout } = useAuth()
+    const [domain, setDomain] = useState('no.domain');
+
+    useEffect(() => {
+        // Fetch domain once on mount
+        loadDomain();
+    }, []);
+
+    const loadDomain = async () => {
+        try {
+            const response = await clusterApi.getDomain();
+            // Backend returns { domain: "..." } directly
+            if (response && response.domain) {
+                setDomain(response.domain);
+            }
+        } catch (error) {
+            console.error("Failed to load cluster domain:", error);
+        }
+    };
+
     const { isConnected } = useWebSocket()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const theme = useContext(ThemeContext) as any;
@@ -27,33 +44,10 @@ export function AppHeader() {
                 pad={{ vertical: 'small', horizontal: 'xsmall' }}
             />
 
-            <Box direction="row" gap="medium" align="center">
+            <Box direction="column" gap="medium" align="end">
+                <Anchor href={`https://home.${domain}`} target="_blank">{domain}</Anchor>
                 <ConnectionStatus isConnected={isConnected} />
-
-                {user && (
-                    <Box direction="row" gap="small" align="center">
-                        <Box direction="column" align="end">
-                            <Text weight="bold" size="small">
-                                {user.username}
-                            </Text>
-                            <Text size="xsmall" color="text-weak">
-                                {user.email}
-                            </Text>
-                        </Box>
-                        <Menu
-                            icon={
-                                <Avatar background="accent-1">
-                                    <UserIcon color="white" />
-                                </Avatar>
-                            }
-                            dropAlign={{ top: 'bottom', right: 'right' }}
-                            items={[
-                                { label: 'Logout', icon: <Logout />, onClick: logout },
-                            ]}
-                        />
-                    </Box>
-                )}
             </Box>
-        </Header>
+        </Header >
     )
 }

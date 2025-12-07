@@ -14,7 +14,7 @@ spec:
       annotations:
         {{ include "hpe-ezua.annotations" . | nindent 8 }}
       labels:
-        {{ include "kubik.selectorLabels" . | nindent 8 }}
+        {{ include "kubik.labels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "kubik.serviceAccountName" . }}
       containers:
@@ -32,7 +32,8 @@ spec:
               value: "6379"
             - name: K8S_IN_CLUSTER
               value: "true"
-            {{- toYaml .Values.backend.env | nindent 12 }}
+            - name: ENVIRONMENT
+              value: "production"
           livenessProbe:
             httpGet:
               path: /health

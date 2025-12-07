@@ -1,16 +1,10 @@
-
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies if any (none apparent from requirements, but good practice to keep clean)
-RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first to leverage cache
-COPY requirements.txt .
-
-# Install python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies
+COPY app/requirements.txt /app/
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy application code
 COPY . .

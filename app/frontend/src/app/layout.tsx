@@ -8,7 +8,6 @@ export const metadata: Metadata = {
     description: 'Dashboard for HPE AI Essentials',
 }
 
-import { AuthProvider } from '@/lib/auth/AuthContext'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { NotificationProvider } from '@/components/layout/NotificationProvider'
 
@@ -22,11 +21,9 @@ export default function RootLayout({
             <body>
                 <StyledComponentsRegistry>
                     <Grommet theme={hpe} full>
-                        <AuthProvider>
-                            <NotificationProvider />
-                            <AppHeader />
-                            {children}
-                        </AuthProvider>
+                        <NotificationProvider />
+                        <AppHeader />
+                        {children}
                     </Grommet>
                 </StyledComponentsRegistry>
             </body>

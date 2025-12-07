@@ -1,0 +1,23 @@
+# Ignore files for Tilt builds
+.git/
+.gitignore
+*.md
+.env
+.env.*
+.DS_Store
+
+# Frontend
+app/frontend/node_modules/
+app/frontend/.next/
+app/frontend/out/
+app/frontend/build/
+
+# Backend
+app/backend/__pycache__/
+app/backend/.venv/
+app/backend/venv/
+app/backend/*.pyc
+app/backend/.pytest_cache/
+
+# Tilt
+.tiltbuild/

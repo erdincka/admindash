@@ -4,7 +4,7 @@ import { storageApi, FileItem, FileContent } from '@/lib/api/storage';
 import { Box, Button, DataTable, Heading, Layer, Text, Spinner } from 'grommet';
 import { useEffect, useState } from 'react';
 import {
-    Close, FormPrevious, Home, Document, Folder, Refresh, DocumentText, DocumentImage, DocumentVideo, Upgrade
+    Close, FormPrevious, Home, Folder, Refresh, DocumentText, DocumentImage, DocumentVideo
 } from 'grommet-icons';
 import dynamic from 'next/dynamic';
 
